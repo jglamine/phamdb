@@ -2,6 +2,7 @@ hhsuite
 kalign
 mysql-server
 python-pip
+python-virtualenv
 build-essential
 python-dev
 libmysqlclient-dev
