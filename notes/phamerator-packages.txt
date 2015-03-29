@@ -1,0 +1,15 @@
+bzr
+clustalw
+curl
+mysql-server*
+pv
+pyro
+python-biopython
+python-mysqldb
+python-pygoocanvas
+python-pp
+python-webkit
+
+python-gconf
+python-notify
+xfce4-notifyd

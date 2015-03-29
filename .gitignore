@@ -1,0 +1,6 @@
+*.pyc
+*.log
+env
+webphamerator/database_dumps/*
+webphamerator/genbank_files/*
+

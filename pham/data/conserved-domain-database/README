@@ -1,0 +1,1034 @@
+ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz
+
+CDD FTP-archive                                       revised 16 January 2015
+ftp://ftp.ncbi.nih.gov/pub/mmdb/cdd/README
+===============================================================================
+
+CONTENTS: 
+
+1. SUMMARY
+2. SCOPE OF DATA IN FTP FILES
+3. LIST OF FILES AND SUBDIRECTORIES, AND SUMMARY OF THEIR CONTENTS
+4. DETAILS FOR EACH FILE AND SUBDIRECTORY (ALPHABETICALLY BY FILENAME)
+5. CD-SEARCH WEB SERVICE VS. STANDALONE RSP-BLAST
+   5.1 What accounts for the differences in search results generated 
+       by the CD-Search web service and standalone RSP-BLAST?
+   5.2 How can I configure standalone RPS-BLAST to generate the same results
+       as the CD-Search web service?
+
+================================================================================
+1. SUMMARY
+================================================================================
+This ftp-directory contains collections of position-specific 
+scoring matrices (PSSMs) that have been created for the CD-Search 
+service (http://www.ncbi.nlm.nih.gov/Structure/cdd/wrpsb.cgi).  
+
+CD-Search can be used to identify conserved domains in a 
+query protein sequence and infer its putative function (see:  
+http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd.shtml). 
+
+PSSMs are briefly described in the CDD help document: 
+http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CD_PSSM.  
+
+The PSSMs are meant to be used for compiling RPS-BLAST search
+databases, which can be used with the standalone RPS-BLAST program. 
+That program, as well as the makeprofiledb application needed to 
+convert files in this directory, are part of the BLAST executables 
+(ftp://ftp.ncbi.nih.gov/blast/executables/LATEST/) 
+and the NCBI software development toolkit distribution  
+(ftp://ncbi.nlm.nih.gov/toolbox).  The makeprofiledb application is
+described at www.ncbi.nlm.nih.gov/books/NBK1763
+
+Be sure to use recent BLAST executables in order to obtain the 
+makeprofiledb application that is compatible with the CDD FTP files. 
+(The formatrpsdb application packaged with earlier BLAST releases 
+is not compatible and will result in an error message, 
+"unable to match element in intermediateData... ERROR: no data found in file.") 
+
+The "little_endian" subdirectory of this CDD FTP site contains preformatted
+databases, eliminating the need to use the makeprofiledb application. 
+More information about the "little_endian" subdirectory is provided in 
+subsequent sections of this file. However, if you prefer to create 
+customized search sets, you will still need to run makeprofiledb. 
+
+An "rpsbproc" subdirectory of this CDD FTP site contains a command line utility
+that serves as an addition to the standalone RPS-BLAST executable. 
+The "rpsbproc" utility post-processes the results of local RPS-BLAST searches 
+in order to provide a non-redundant view of the search results, and to provide 
+additional annotation on query sequences, such as domain superfamilies and 
+conserved sites, similar to the annotation provided by the corresponding 
+web services. Additional details about both the standalone RPS-BLAST program 
+and the "rpsbproc" utility are provided in subsequent sections of this file.
+
+Finally, note that the E-values you get (for any given protein query--conserved 
+domain hit pair) on the CD-Search web service might differ from those you get 
+when using standalone RPS-BLAST on your local PC. The last section of 
+this document describes the differences between the web service and 
+standalone program, and provides a tip on how you can configure standalone 
+RPS-BLAST to generate the same results as those produced by the 
+CD-Search web service. 
+
+===============================================================================
+2. SCOPE OF DATA IN FTP FILES 
+===============================================================================
+
+Data accessible via the CD-Search tool and in the Entrez Conserved Domain 
+Database (CDD) originate from a number of source databases, including NCBI-
+curated domain models as well as models from external sources. 
+
+The data are grouped by source database into the following subsets: 
+
+1 cd ....... alignment models curated at NCBI as part of the CDD project
+             (see: http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CDSource_NCBI_curated)
+             
+2 Pfam ..... PSSMs from a mirror of the Pfam-A seed alignment database
+             (see: http://pfam.sanger.ac.uk/)
+             
+3 Smart .... PSSMs from a mirror of the Smart domain alignment database
+             (see: http://smart.embl-heidelberg.de/)
+             
+4 COG ...... PSSMs from automatically aligned sequences and sequence
+             fragments classified in the COGs resource, which focuses 
+             primarily on prokaryotes 
+             (see: http://www.ncbi.nlm.nih.gov/COG/new/)
+             
+5 PRK ...... PSSMs from automatically aligned sequences and sequence
+             fragments classified as stable clusters in the 
+             Protein Clusters database 
+             (see: http://www.ncbi.nlm.nih.gov/sites/entrez?cmd=search&db=proteinclusters)
+             
+6 TIGRFAM    PSSMs from a mirror of the TIGRFAM database of protein families
+             (see: http://www.jcvi.org/cms/research/projects/tigrfams/overview/)
+             
+7 KOG ...... PSSMs from automatically aligned sequences and sequence
+             fragments classified in the KOGs resource, the eukaryotic 
+             counterpart to COGs (see "http://www.ncbi.nlm.nih.gov/COG/new/").
+             These are available as a separate search set in CD-Search,  
+             but are not in the CD-Search tool's DEFAULT "cdd" database, 
+             and are not indexed for text searching in Entrez CDD.
+             
+8 LOAD ..... Library of Ancient Domains 
+             These 55 models are available only as a data file on the  
+             FTP site but are not searchable via CD-Search and are not  
+             indexed for text searching in Entrez CDD.  The domains
+             in this set are represented by domain models in the other 
+             data collections above. 
+            
+             (Additional details about source Databases are provided 
+             in the  CDD Help Doc: 
+             http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CDSource)
+
+The CD-Search databases, Entrez CDD, and the FTP files in this directory, 
+encompass various data sets.  The scope of data covered by each FTP file is 
+noted in the FILE LIST and SUMMARY, below, and can be one of the following: 
+
+SCOPE A:     ALL CD models accessible via the CD-Search tool  
+             (subsets 1-7, described above), 
+             plus subset 8 (which is accessible from this FTP site, 
+             but is not searchable via CD-Search and  
+             is not indexed for text searching in Entrez CDD).
+
+SCOPE B:     Data from the CD-Search tool's DEFAULT "cdd" database, 
+             which includes subsets 1-6, above.  These subsets are 
+             also indexed and searchable in NCBI's Entrez CDD database. 
+ 
+SCOPE C:     NCBI-curated CD models (subset 1, above). 
+
+SCOPE D:     Data from specific, individual NCBI-curated CD models
+
+SCOPE E:     conserved domain models that are members of superfamilies; 
+             these can include models from subset 1, and models from 
+             subsets 2-6 that are not multidomains. 
+             Superfamilies and multidomains are described in the 
+             CDD Help document: 
+       http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#RPSB_hit_types
+ 
+
+===============================================================================
+3. LIST OF FILES AND SUBDIRECTORIES, AND SUMMARY OF THEIR CONTENTS
+===============================================================================
+
+The CDD FTP directory includes the files and subdirectories listed below. 
+Files are listed first, followed by subdirectories. 
+ 
+The letter in the "SCOPE" column indicates the set or subset of data in a file,
+as described in the preceding section, "SCOPE OF DATA in FTP FILES."
+Additional DETAILS for each file and subdirectory are provided in the next
+section, "DETAILS FOR EACH FILE AND SUBDIRECTORY." 
+
+-------------------------------------------------------------------------
+FILE NAME          |scope| summary 
+-------------------------------------------------------------------------
+cdd.tar.gz         |  A  | PSSMs originating from various alignment 
+                   |     | collections; can be used to build search  
+                   |     | databases for RPS-BLAST.   
+                   |     | (scope A: all CD models) 
+------------------------------------------------------------------------
+acd.tar.gz         |  A+ | CD data as used by the CD-server for 
+                   |     | visualization of CD-search results
+                   |     | (scope A, PLUS data for superfamily clusters)
+------------------------------------------------------------------------
+cddid_all.tbl.gz   |  A  | summary information about all CD models in this 
+                   |     | distribution 
+                   |     | (scope A: all CD models) 
+------------------------------------------------------------------------
+fasta.tar.gz       |  A  | sequence alignments from the CDs in mFASTA format
+                   |     | (scope A: all CD models)
+------------------------------------------------------------------------
+cdd.versions       |  A  | list of all conserved domain model accessions,  
+                   |     | versions, and PSSM IDs present in the current and 
+                   |     | previous versions of the Conserved Domain Database 
+                   |     | (scope A: all CD models) 
+------------------------------------------------------------------------
+cdd.info           |  B  | CDD release version number and details
+                   |     | (scope B: default "cdd" database)
+-------------------------------------------------------------------------
+cddid.tbl.gz       |  B  | summary information about the CD models in this
+                   |     | distribution that are part of the CD-Search tool's
+                   |     | default "cdd" database and are indexed in 
+                   |     | NCBI's Entrez CDD database 
+                   |     | (scope B: default "cdd" database)
+------------------------------------------------------------------------
+cddmasters.fa.gz   |  B  | FASTA-formatted sequences that show representative 
+                   |     | sequences for each conserved domain model in the 
+                   |     | collection
+                   |     | (scope B: default "cdd" database)
+------------------------------------------------------------------------
+cddannot.dat.gz    |  C  | information about conserved family features
+                   |     | (such as binding and catalytic sites) as  
+                   |     | recorded for NCBI-curated CD models
+                   |     | (scope C: NCBI-curated domain models)
+------------------------------------------------------------------------
+cddannot_generic.dat.gz    | information about generic conserved family features
+                   |  C  | (such as binding and catalytic sites) in root CD  
+                   |     | models that are mapped to all hierarchy members.
+                   |     | (scope C: NCBI-curated domain models)
+                   |     | (scope C: NCBI-curated domain models)
+------------------------------------------------------------------------
+cdtrack.txt        |  C  | information from NCBI's internal tracking system
+                   |     | about hierarchies of related domain models in 
+                   |     | NCBI-curated domains (scope C) 
+------------------------------------------------------------------------
+bitscore_specific_X.XX.txt | domain-specific score thresholds used by 
+                   |     | CD-Search tool to determine whether hits to
+                   |  C  | NCBI-curated domain models are specific or 
+                   |     | non-specific.  The X.XX portion of the filename
+                   |     | indicates CDD release number.  (scope C)
+------------------------------------------------------------------------
+cd00882_notree.acd | D   | versions of files distributed within acd.tar 
+cd01659_notree.acd | D   | that are meant for users of the old NCBI C-toolkit
+cd02039_notree.acd | D   | (scope D: specific, individual NCBI-curated models)
+------------------------------------------------------------------------
+family_superfamily_links | list of NCBI-curated and imported domain models   
+                         | that are members of CDD superfamilies, along   
+                   |  E  | with the superfamily accession (cl*) to which
+                   |     | each domain model belongs
+                   |     | (scope E: superfamily members)
+                   |     | 
+------------------------------------------------------------------------
+DIRECTORY NAME     |scope| summary 
+-------------------------------------------------------------------------
+big_endian         |     | These subdirectories contain pre-formatted search 
+little_endian      |     | databases for use with the standalone RPS-BLAST 
+(subdirectories)   |     | executable (available from 
+                   |     | ftp://ftp.ncbi.nih.gov/blast/executables/LATEST/
+                   |     | and described in 
+                   |     | ftp://ftp.ncbi.nih.gov/blast/documents/rpsblast.html).                 
+                   |     | The databases are formatted for use with various
+                   |     | architecture/OS combinations. 
+                   |     | 
+                   |     | The "little_endian" directory is up to date and 
+                   |     | contains databases formatted for Intel/Linux, 
+                   |     | Intel/Windows, and Intel/Solaris. 
+                   |     | 
+                   |     | The "big_endian" directory is no longer supported;
+                   |     | it contains databases formatted for Sun/Solaris and
+                   |     | SGI/IRIX.
+                   |     | 
+                   |   A-| The scope of data in both directories is A- 
+                   |     | (i.e., just less than scope A). The directories     
+                   |     | contain ALL CD models accessible via the CD-Search    
+                   |     | tool (subsets 1-7, described in"SCOPE OF DATA in FTP 
+                   |     | FILES", above) BUT NOT subset 8 (LOAD)). The data                       
+                   |     | are organized into files based on source database. 
+                   |     | 
+                   |   B | The files named "Cdd_LE.tar.gz" and "Cdd_BE.tar.gz
+                   |     | have scope B. That is, they contain all domain                   
+                   |     | models that are in the CD-Search tool's DEFAULT 
+                   |     | "cdd" database (subsets 1-6, described in 
+                   |     | "SCOPE OF DATA in FTP FILES", above).                   
+                   |     | 
+                   |   C | The file named "Cdd_NCBI_LE.tar.gz" and is 
+                   |     | available only in the little_endian directory,                     
+                   |     | and has scope C. That is, it contains only 
+                   |     | NCBI-curated CD models (subset 1, described in 
+                   |     | "SCOPE OF DATA in FTP FILES", above).
+                   |     | 
+                   |     | File names in the little_endian directory  
+                   |     | contain the fragment "LE" and filenames in the 
+                   |     | big_endian directory contain the fragment "BE."                    
+                   |     | 
+------------------------------------------------------------------------ 
+rpsbproc           | N/A | This directory contains the "rpsbproc" command line
+                   |     | utility, which is an addition to the standalone 
+                   |     | RPS-BLAST executable. The "rpsbproc" utility 
+                   |     | post-processes the results of local RPS-BLAST 
+                   |     | searches in order to provide a non-redundant view 
+                   |     | of the search results, and to provide additional 
+                   |     | annotation on query sequences, such as
+                   |     | domain superfamilies and conserved sites,
+                   |     | similar to the annotation provided by the
+                   |     | corresponding web services, such as the 
+                   |     | NCBI Batch CD-Search web service.  
+                   |     | 
+------------------------------------------------------------------------- 
+
+
+===============================================================================
+4. DETAILS FOR EACH FILE AND SUBDIRECTORY (ALPHABETICALLY BY FILENAME)  
+===============================================================================
+
+Files are listed below, in alphabetical order. 
+Subdirectories are described last, also in alphabetical order. 
+
+--------------------------
+FILES: 
+--------------------------
+===============================================================================
+acd.tar.gz
+===============================================================================
+
+"acd.tar.gz" is a gzipped archive that contains the CD data as 
+used by the CD-server for visualization of CD-search results. They have been 
+stored as ASN.1 formatted files. 
+
+The types of information provided for each conserved domain model are 
+described in the CDD help document section on "CDD Record (CD Summary page): 
+What information is displayed for each domain model?"
+http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CDVisual.
+ 
+        (SCOPE A+: this file includes data from all CD models, 
+        PLUS data for superfamily clusters 
+        (http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#Superfamily).
+        Additional details about data coverage are provided in the 
+        earlier section, "SCOPE OF DATA in FTP FILES") 
+        
+Technical note: The "acd" acronym is used at NCBI to denote
+"ASN.1 Cd Datafile". It is also used as a file extension for 
+CD data files (e.g., the "cd0????_notree.acd" files in this
+FTP directory). However, the conserved domain file extensions 
+appear as "*.cn3" when using the CDD database web server's 
+"Structure View" function.  That allows the conserved domain 
+data files to be uniquely associated with the Cn3D viewing program 
+(http://www.ncbi.nlm.nih.gov/Structure/CN3D/cn3d.shtml), 
+and to differentiate them from *.acd file extension used 
+by computer-aided design programs such as Autocad. 
+
+===============================================================================
+bitscore_specific_X.XX.txt
+===============================================================================
+
+"bitscore_specific_X.XX.txt" (e.g., "bitscore_specific_2.14.txt") 
+contains the domain-specific bit score thresholds used by CD-Search 
+tool to determine whether hits to NCBI-curated domain models are 
+specific or non-specific (both hit types are described in:  
+http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#RPSB_hit_types). 
+
+This file is saved for each CDD release (the X_XX portion of the filename 
+indicates the CDD release number), allowing retrieval of current and 
+previous bit score thresholds for a domain model. 
+
+The file contains three columns: 
+
+1. conserved domain PSSM ID 
+
+   This is a unique identifier for a domain model's position-specific 
+   scoring matrix (PSSM).  If a domain model's PSSM changes in any way 
+   as a result of updates to its multiple sequence alignment, it receives 
+   a new PSSM ID.  This happens because a conserved domain model can evolve 
+   over time.  For example, as new sequence data become available, curators 
+   might add sequences to a multiple sequence alignment or update the  
+   sequences already present. As a result of such changes to the domain model, 
+   the PSSM and its ID can change. 
+
+   Additional information about PSSMs is accessible from: 
+   http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CDProcess) 
+
+2. conserved domain accession number  
+
+   Domain-specific score thresholds are currently calculated only for 
+   NCBI-curated domains; therefore, all accessions in the file begin with  
+   the prefix "cd" 
+   (see: http://www.ncbi.nlm.nih.gov/Structure/cdd/
+   cdd_help.shtml#CDSource_accession_prefix)  
+
+3. domain-specific score threshold, shown as bit score 
+
+   This column shows the lowest bit score among self-hits of a domain’s 
+   member protein sequences to the resulting domain model. 
+   This domain-specific score threshold can change for the same reasons
+   the PSSM ID can change (explained in #1, above). 
+
+   An illustrated example and additional details about specific hits 
+   and domain-specific thresholds are provided in the CD-Search help document: 
+   http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#SpecificHit 
+
+
+        (SCOPE C: this file includes data from NCBI-curated domain models;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cd0????_notree.acd (no longer updated)
+=============================================================================== 
+
+"cd0????_notree.acd" are versions of files distributed within "acd.tar",
+which have been stored without data representing the sequence tree of the 
+underlying set of sequence fragments. Trees in these particular examples are 
+deeply nested and can not be read with the old NCBI C-toolkit object loaders.
+These separate files allow users of the old NCBI C-toolkit to load the full set
+of conserved domain models into their applications.
+
+        (SCOPE D: these files include data from specific, 
+        individual NCBI-curated models; see section on 
+        "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cdd.info
+=============================================================================== 
+
+"cdd.info" contains the CDD release version number and details the 
+content of the release (number of models from each data source)
+
+        (SCOPE B: this file includes data from the default "cdd" database;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cdd.tar.gz
+===============================================================================
+
+"cdd.tar.gz" is a gzipped archive file that contains Position-Specific 
+Scoring Matrices (PSSMs) originating from all of the alignment collections 
+encompassed by the Conserved Domain database project. 
+
+        (Scope A: this file includes data from ALL CD models; 
+        see section on "SCOPE OF DATA in FTP FILES" for details)             
+
+To build search databases for RPS-Blast you need to unpack the
+archive and extract its contents. It contains ascii formatted
+files only, with the following extensions:
+
+ *.smp ...... Position Specific Scoring Matrices (PSSMs). These are
+              stored in a new ASN.1 format ("scoremat"), which is shared
+              between various BLAST applications.
+ *.pn ....... lists of PSSM file names
+ 
+and allows for the compilation of the following RPS-Blast search databases
+
+ Smart 
+ Pfam
+ Cog
+ Kog
+ Prk
+ Tigr
+ Cdd_NCBI (NCBI/CDD-curated domain models only)
+ Cdd  (domains from Smart, Pfam, COG, PRK, and cd, 
+       this is the set that's indexed in NCBI's Entrez)
+ 
+The databases must be formatted with the "makeprofiledb" application 
+that is distributed with the BLAST executables 
+(ftp://ftp.ncbi.nih.gov/blast/executables/).  
+Be sure to use recent BLAST executables in order to obtain the 
+makeprofiledb application that is compatible with the CDD FTP files. 
+(The formatrpsdb application packaged with earlier BLAST releases 
+is not compatible and will result in an error message, 
+"unable to match element in intermediateData...error no data found in file.") 
+
+The following sequence of commands will build the search databases:
+
+  
+makeprofiledb -title SMART.v6.0 -in Smart.pn -out Smart -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title Pfam.v.26.0 -in Pfam.pn -out Pfam -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title COG.v.1.0 -in Cog.pn -out Cog -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title KOG.v.1.0 -in Kog.pn -out Kog -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title CDD.v.3.12 -in Cdd.pn -out Cdd -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title CDD_NCBI.v.3.12 -in Cdd_NCBI.pn -out Cdd_NCBI -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+makeprofiledb -title PRK.v.6.00 -in Prk.pn -out Prk -threshold 9.82 -scale 100.0 -dbtype rps -index true
+
+
+Note that the parameter '-threshold' supplied with makeprofiledb, 
+the three-letter word score threshold for detecting and extending hits 
+in RPS-Blast, will determine the size of the search database. A lower threshold
+will result in larger databases and slightly increased search sensitivity,
+at the cost of additional memory requirements and reduced search speed.
+Matrices distributed for creating RPS-Blast search databases are scaled by a
+factor of 100 (parameter -scale). A score threshold value of 9.82 will result 
+in search-databases of a size very similar to using unscaled matrices and
+a threshold value of 11.
+
+Note also that the RPS-Blast search databases generated by makeprofiledb 
+are architecture dependent, it may not be possible to create them on one
+and use them on another platform.
+
+When searching with your local version of RPS-blast, use the command-line
+argument "-d" to specify the database name and location. You need an
+executable version of the "rpsblast" program, type "rpsblast" without
+arguments to obtain a list of command-line options.
+ 
+You can now take any arbitrary subset of PSSMs and compile them into an
+RPS-Blast search database. All that makeprofiledb needs is a list of file
+names (such as "Smart.pn" in the example above) and the corresponding 
+"scoremats" (*.smp) files. Newer versions of Psi-BLAST (blastpgp) can now
+write out "checkpoints" in the "scoremat" format as well (blastpgp parameter
+-u1). These again can be combined with arbitrary subsets of scoremat-
+formatted PSSMs distributed here, to create customized RPS-Blast search sets.
+The scoremat-formatted PSSMs distributed here are scaled with a factor 100.0,
+and if one was to combine them with Psi-BLAST generated "scoremats", the
+same scaling factor must be set as a parameter with makeprofiledb. 
+
+Note: If you prefer to use preformatted databases, see the 
+little_endian subdirectory of the CDD FTP site. It contains databases 
+that have been preformatted for use with Intel-based platforms, under 
+Linux, Windows, and other operating systems. 
+
+===============================================================================
+cdd.versions 
+=============================================================================== 
+
+"cdd.versions" lists all conserved domain model accessions, versions, 
+and PSSM IDs present in the current and previous versions of the 
+Conserved Domain Database.  
+
+        (Scope A: this file includes data from ALL CD models; 
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+
+Example/Excerpt from file:  
+
+# Acc          ShortName  PssmId  Root     Ver  Lv Rl ER Time             
+# ------------ ----------------- -------- ---- -- -- -- -----------------
+...
+pfam09006      Surfac_D-t 90442   N/A      4    1  1  0  01/09/08 09:49:00
+pfam09006      Surfac_D-t 87766   N/A      3    0  1  0  09/13/07 17:36:00
+pfam09006      Surfac_D-t 72424   N/A      2    0  1  0  05/07/07 17:24:00
+pfam09006      Surfac_D-t 72424   N/A      1    0  1  0  03/12/07 13:54:00
+... 
+
+Column descriptions: 
+
+Acc = conserved domain model accession number (e.g., pfam09006) 
+
+ShortName = first 10 characters of domain model's short name, 
+        in this case, Surfac_D-t, for Surfac_D-trimer. 
+
+PSSMID = unique identifier for the position specific scoring matrix
+        (e.g., as the pfam09006 domain model has evolved, it has had
+        three PSSMs, with IDs 72424, 87766, and 90442, respectively).
+        
+        If there are any changes in the protein sequence alignment 
+        of a domain model (for example, the addition/deletion of 
+        member protein sequences or changes in the span of aligned residues), 
+        or if there are changes in the interpretation of the alignment, 
+        a new PSSM will be calculated. In that case, it will receive
+        a new PSSM ID, although the accession number of the conserved 
+        domain model will remain the same. 
+        
+        If only the domain model description or other annotations have
+        changed, but the PSSM did not change, the version of the model 
+        will be incremented but the the PSSM ID will remain the same, 
+        as it did for version 1 and 2 of pfam09006, both of which had 
+        the PSSM ID 72424. 
+        
+Root =  if the domain model is NCBI-curated, the "Root" column will 
+        show the accession number of the parent node of the curated
+        domain hierarchy.  If the domain hierarchy contains only a
+        single node, the value in the "Root" column will be the same
+        as that in the "Acc" column.  The values will also be the same 
+        if the accession listed in the first column is the parent node
+        of a multi-level hierarchy. 
+
+Version = version number of that particular domain model 
+
+Lv =         indicates the current live version of the record:  
+        1 = live status; 
+        0 = dead, earlier version. 
+
+Rl =         indicates whether the domain model version has been 
+             released into the public database. This is a flag 
+             NCBI uses for internal data tracking.  
+             For most domain models, the value will be 
+             1= released, which means at some point the model was 
+             live in the database. Occasionally a value of "0" might 
+             appear, primarily for ncbi-curated models.  This indicates
+             a newer version of a model is in preparation at NCBI and 
+             will be released in the future. 
+
+ER =         Expendable or redundant models; value in this column can be: 
+             0 = non-expendable or not redundant 
+             1 = expendable or redundant; indicates a model that has been 
+             removed from the default "cdd" search set because the 
+             information in it is represented in another domain model. 
+
+Time =         date and time on which the model was last updated in the 
+        internal conserved domain tracking database.  
+
+===============================================================================
+cddannot.dat.gz and cddannot_generic.dat.gz
+=============================================================================== 
+
+"cddannot.dat.gz" contains information about conserved family features
+(such as binding and catalytic sites) as recorded for, and thus are 
+‘specific’ to, curated CD models. "cddannot_generic.dat.gz" contains 
+so-called ‘generic’ features that are present in the root CD model of a 
+hierarchy and mapped to each descendant CD model in that hierarchy.  
+For the root CD, the generic and specific features are identical.  
+If the root CD has no features, then there are no generic features 
+for any CD in that hierarchy.  
+
+These are tab-delimited text files, with a single row per "feature" and the 
+following columns:
+
+ PSSM-Id (unique numerical identifier)
+ CD accession (starting with 'cd')
+ CD "short name"
+ Feature number
+ Feature description/name
+ Feature sequence motif (given in Prosite syntax), or ‘0’ when not specified
+ Boolean flag (0/1), indicating presence of structure-based feature evidence
+ Boolean flag (0/1), indicating presence of reference-based feature evidence
+ Boolean flag (0/1), indicating presence of additional comments
+ comma-separated feature addresses
+ site type (numerical)
+ 
+The feature addresses are positions on the alignment's "master sequence", 
+which is a consensus sequence, and on the alignment's PSSM (the database search
+model). Note that feature addresses are stored in a coordinate system that
+counts the first residue in the consensus sequence as "0".
+
+The site types are assigned as follows:
+
+0 ... unassigned or type "other"
+1 ... active site
+2 ... polypeptide binding site
+3 ... nucleic acid binding site
+4 ... ion binding site
+5 ... chemical binding site
+6 ... posttranslational modification site
+7 ... structural motifs
+
+        (SCOPE C: this file includes data from NCBI-curated domain models;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cddid.tbl.gz
+=============================================================================== 
+
+"cddid.tbl.gz" contains summary information about the CD models in this
+distribution, which are part of the default "cdd" search database and are 
+indexed in NCBI's Entrez database. This is a tab-delimited text file, with a 
+single row per CD model and the following columns:
+
+ PSSM-Id (unique numerical identifier)
+ CD accession (starting with 'cd', 'pfam', 'smart', 'COG', 'PRK' or "CHL')
+ CD "short name"
+ CD description
+ PSSM-Length (number of columns, the size of the search model)
+
+        (SCOPE B: this file includes data from the default "cdd" database;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cddid_all.tbl.gz
+=============================================================================== 
+
+"cddid_all.tbl.gz" contains summary information about all CD models in
+this distribution. This is a tab-delimited text file, with a single row per CD 
+model and the following columns:
+
+ PSSM-Id (unique numerical identifier)
+ CD accession (starting with 'cd', 'pfam', 'smart', 'COG', 'PRK', 'CHL', 'KOG',
+               or 'LOAD')
+ CD "short name"
+ CD description
+ PSSM-Length (number of columns, the size of the search model)
+
+        (Scope A: this file includes data from ALL CD models; 
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cddmasters.fa.gz
+=============================================================================== 
+
+"cddmasters.fa.gz" is an archive containing the FASTA-formatted 
+sequences that shows representative sequences for each conserved domain model
+in the collection. The representative sequences are consensus sequences with
+an approximate median length relative to all the sequence footprints used in 
+the alignment. They are constructed for calculating a position-specific score
+matrix (PSSM), each residue in the representative sequence corresponds to a 
+column in the PSSM. When RPS-BLAST formats output, it will display pair-wise
+alignments between the query and PSSMs' representative sequences.
+
+        (SCOPE B: this file includes data from the default "cdd" database;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+cdtrack.txt
+=============================================================================== 
+
+"cdtrack.txt" lists information from NCBI's internal tracking system
+for conserved domain models curated at NCBI. The intent of this file is to 
+provide information about hierarchies of related domain models. All models 
+that map to the same root accession have been linked together in a 
+hierarchical set, in which the alignment models are consistent with each 
+other.
+
+Columns in this table are:
+Acc .......... CD accession
+ShortName .... CD short name
+PssmId ....... CD PSSM-ID, a unique numerical identifier for each CD
+Root ......... Accession of the CD hierarchy root model.
+Ver .......... CD version number
+Lv ........... is model live in the tracking system?
+Rl ........... has model been released to the public?
+ER ........... has model been flagged as "expendable or redundant"?
+Time ......... time stamp in the tracking system (last modification)
+
+        (SCOPE C: NCBI-curated domain models;
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+=============================================================================== 
+family_superfamily_links 
+=============================================================================== 
+
+"family_superfamily_links" lists the conserved domain models that are members 
+of superfamilies, along with the superfamily cluster (cl*) accession to which 
+each domain model belongs.  
+
+Superfamily members can include NCBI-curated domain models as well as 
+imported models that are not multi-domains.
+More information about superfamilies and multidomains is available at:  http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#Superfamily and 
+http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#RPSB_hit_types. 
+
+The file contains four columns:  
+
+1. conserved domain accession number  
+
+   For examples, see: http://www.ncbi.nlm.nih.gov/Structure/cdd/
+   cdd_help.shtml#CDSource_accession_prefix.  
+
+2. conserved domain PSSM ID 
+
+   This is a unique identifier for a domain model's position-specific 
+   scoring matrix (PSSM).  If a domain model's PSSM changes in any way 
+   as a result of updates to its multiple sequence alignment, it receives 
+   a new PSSM ID.  This happens because a conserved domain model can evolve 
+   over time.  For example, as new sequence data become available, the 
+   curators of a source database might add sequences to a multiple sequence 
+   alignment or update the  sequences already present. As a result of 
+   such changes to the domain model, the PSSM and its ID can change. 
+   Additional information about PSSMs is accessible from: 
+   http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#CDProcess) 
+
+3. superfamily cluster accession number 
+
+   If a conserved domain model belongs to a superfamily with two or 
+   more members, this column contains the accession of the corresponding 
+   superfamily (an alphanumeric string that starts with a "cl" prefix, 
+   which means "cluster," and followed by a series of digits, e.g., cl02915).  
+   
+   If a conserved domain model is a "singleton" (the sole member of a 
+   superfamily), this column simply repeats the conserved domain model's 
+   accession number that is shown in column 1. (Note: The majority of  
+   superfamilies are singletons, containing a single model from either 
+   Pfam, TIGRFAM, COGs, etc. While the CDD data processing pipeline 
+   does generate corresponding superfamily cluster models, they are 
+   not indexed in the Entrez search system in order to reduce redundancy 
+   in the presentation of search results.)
+   
+   Superfamily clusters are produced via an automated procedure 
+   each time there is a new CDD release.  Information about  
+   clustering methodology is provided at: 
+   http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd_help.shtml#Superfamily. 
+
+   The composition of a cluster can change over time due to a variety  
+   of factors, such as (a) availability of new domain models,  
+   (b) changes to previously existing models, (c) new and/or updated  
+   sequence records in the Entrez Protein database, and (d) refinements 
+   to the automated clustering procedures.  
+
+   A superfamily cluster accession number will remain the same if 
+   at least 50 percent of its member models (conserved domain accessions)
+   have not changed relative to the previous version of the cluster. 
+
+   If more than 50 percent of the conserved domain accessions from   
+   a previous version of a cluster are no longer present in the new build 
+   of that cluster, or if the cluster size more than doubles with a new 
+   build, then the superfamily cluster accession is retired and replaced 
+   by a new accession(s). If two previous clusters merge into a single new
+   cluster, the superfamily cluster accession number of the larger 
+   component cluster is used for the new grouping.  
+
+4. superfamily cluster PSSM ID 
+
+   A superfamily's PSSM ID refers to the specific set of 
+   conserved domain PSSM IDs that comprise the superfamily, rather 
+   than to an actual position-specific scoring matrix for the overall 
+   superfamily.   
+  
+   The superfamily cluster PSSM ID will change if there is any change 
+   to the set of member PSSM IDs relative to the previous version of 
+   the cluster (e.g., if a member conserved domain gets a new PSSM ID 
+   due to changes in its multiple sequence alignment, of if a new conserved 
+   domain model is added to the superfamily as the result of a CDD database 
+   update). 
+  
+
+The family_superfamily_links file for each CDD release will be saved on the 
+FTP site and can be used to track changes in superfamily clusters over time. 
+
+        (Scope E: this file includes data from NCBI-curated and 
+        imported domain models that are members of superfamiles; 
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+===============================================================================
+fasta.tar.gz
+===============================================================================
+
+"fasta.tar.gz" contains sequence alignments from the CDs in mFASTA
+format. Note that sequence fragments are identified with GIs and/or accessions,
+but the alignments do not necessarily contain full-length sequences: 
+the fragments span the region between the first and last aligned residue only. 
+
+        (Scope A: this file includes data from ALL CD models; 
+        see section on "SCOPE OF DATA in FTP FILES" for details)
+
+--------------------------
+DIRECTORIES: 
+--------------------------
+===============================================================================
+"little_endian" subdirectory (still supported) and 
+"big_endian" subdirectory (no longer supported) 
+=============================================================================== 
+
+The "little_endian" and "big_endian" subdirectories contain pre-formatted 
+search databases for use with the standalone RPS-BLAST executable. The 
+executable is available from ftp://ftp.ncbi.nih.gov/blast/executables/LATEST/ 
+and is described in ftp://ftp.ncbi.nih.gov/blast/documents/rpsblast.html). 
+
+The databases are formatted for use with following architecture/OS combinations:
+
+little_endian (current):   Intel/Linux, Intel/Windows, Intel/Solaris  
+big_endian (outdated):     Sun/Solaris, SGI/IRIX
+
+****************************************************************** 
+** We can no longer maintain pre-computed search databases      ** 
+** for big_endian architectures. Search databases distributed   ** 
+** via the big_endian FTP directory are outdated. The data in   ** 
+** the little_endian FTP directory, however, are current.       ** 
+****************************************************************** 
+
+The subdirectories contain gzipped archives for each of the 5 different
+search sets listed above. Simply download the set you need, unpack the
+archive, and use the search set with rpsblast on your platform. 
+
+        (Scope A-:         
+        The scope of data in both directories is A- 
+        (i.e., just less than scope A). The directories contain 
+        ALL CD models accessible via the CD-Search tool 
+        (subsets 1-7, described in the "SCOPE OF DATA in FTP  FILES"
+        section of this document) BUT NOT subset 8 (LOAD)). 
+        The data are organized into files based on source database.
+
+        Scope B: 
+        The files named "Cdd_LE.tar.gz" and "Cdd_BE.tar.gz have scope B. 
+        That is, they contain all domain models that are in the 
+        CD-Search tool's DEFAULT "cdd" database (subsets 1-6, described 
+        in the "SCOPE OF DATA in FTP FILES" section of this document).
+                
+        Scope C: 
+        The file named "Cdd_NCBI_LE.tar.gz" and is available only 
+        in the little_endian directory, and has scope C. That is, 
+        it contains only NCBI-curated CD models (subset 1, described 
+        in the "SCOPE OF DATA in FTP FILES" section of this document).)
+
+File names in the little_endian directory contain the fragment "LE" 
+and filenames in the big_endian directory contain the fragment "BE."
+
+Note that starting with CDD version v3.11 the pre-calculated RPS-BLAST 
+databases will be presented in a new format that includes frequency tables, 
+and RPS-BLAST searches can now be run using composition-corrected scoring. 
+This will require a recent RPS-BLAST binary (BLAST versions 2.2.28 and up).
+
+If you prefer to format the search databases on your own rather than use 
+preformatted databases, see the "cdd.tar.gz" file description. 
+
+
+===============================================================================
+rpsbproc subdirectory
+===============================================================================
+
+The "rpsbproc" subdirectory contains the "rpsbproc" command line utility, 
+which is an addition to the standalone RPS-BLAST executable. 
+Both programs are described below:
+
+
+-----------------------------
+RPS-BLAST  
+-----------------------------
+
+RPS-BLAST is used to identify conserved domains, or functional units, within a 
+query sequence. RPS-BLAST searches a protein sequence (or a protein translation 
+of a nucleotide sequence) against a database of profiles that represent 
+conserved domains. This is the opposite of PSI-BLAST, which searches a profile 
+against a database of protein sequences, hence the term 'Reverse'. 
+
+For each query sequence, standalone RPS-BLAST lists the conserved domain models 
+that score above a certain threshold (default set to an evalue of 10), 
+sorted by scores. The information provided for each hit includes the 
+conserved domain's PSSMID, a set of scores (e-value, bitscore, etc) and the 
+actual sequence alignment between the conserved domain and the query sequence.
+
+A standalone version of the RPS-BLAST program is packaged with the 
+BLAST executables (available on the NCBI FTP site at 
+ftp://ftp.ncbi.nih.gov/blast/executables/LATEST/), 
+and is also available as part of the NCBI toolkit distribution 
+(see ftp://ftp.ncbi.nih.gov/toolbox). Additional details are provided in 
+ftp://ftp.ncbi.nih.gov/blast/documents/rpsblast.html.
+
+----------------------------- 
+rpsbproc command line utility  
+-----------------------------
+
+The "rpsbproc" utility post-processes the results of local RPS-BLAST searches 
+in order to provide a non-redundant view of the search results, and to provide 
+additional annotation on query sequences, such as domain superfamilies and 
+conserved sites, similar to the annotation provided by the corresponding 
+web services (e.g., the NCBI Batch CD-Search web service at  
+http://www.ncbi.nlm.nih.gov/Structure/bwrpsb/bwrpsb.cgi).  
+
+Specifically, the rpsbproc utility reads the output of rpsblast/rpstblastn, 
+fills in domain superfamily and conserved site information for each region of 
+the sequence, re-sorts the hits by a different standard, and calculates a 
+set of non-redundant representative hits. In this way, it turns the 
+raw alignments into domain/site annotations on the query sequence at different 
+redundancy level, just like the Batch CD-Search service does on the web. 
+The annotation data is presented in tab-delimited tables to be processed 
+either programmatically or manually with a spreadsheet.
+
+The rpsbproc command line utility is available from the 
+Conserved Domain Database (CDD) FTP site: 
+ftp://ftp.ncbi.nih.gov/pub/mmdb/cdd/rpsbproc/ 
+and additional details are provided in the corresponding README file: 
+ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/rpsbproc/README
+
+
+===============================================================================
+5. CD-SEARCH WEB SERVICE VS. STANDALONE RSP-BLAST 
+===============================================================================
+
+---------------------------------------------------------- 
+5.1 What accounts for the differences in search results generated by 
+    the CD-Search web service and standalone RSP-BLAST? 
+---------------------------------------------------------- 
+
+There are several differences between the CD-Search web service and 
+standalone RSP-BLAST, as distributed by NCBI and used with search databases 
+as distributed by the CDD group.
+
+The web server is optimized for the most common use of the CDD resource, 
+which is to annotate protein sequences with clearly identified and 
+well understood protein domains, and is also optimized for speed in order to 
+accommodate a high volume of searches.
+
+As part of the optimization, we use some different statistical parameters 
+for the web service than for the standalone RPS-BLAST application. 
+Specifically, we use a constant, assumed search "database size" setting 
+on the web server for calculating E-values. This means that the actual size 
+of the search database can change (we are adding new models every few weeks), 
+but the E-value computed for any individual GI -- PSSM match will remain 
+constant. This approach: (a) ensures that pre-calculated residues are 
+not dependent on the actual size of the model collection (which is redundant 
+and mostly grows by increasing that redundancy); (b) facilitates incremental 
+updates of pre-computed sequence annotation with conserved domains; and 
+(c) is used for the creation of protein-CDD links.
+
+In contrast, standalone RPS-BLAST does not employ the constant, assumed 
+database size parameter. So when you use a search set downloaded from the 
+CDD FTP site, the database size might be different than the one used by 
+the CD-Search web service, and the same hit of your query protein to a 
+model will receive a different E-value in the standalone result. 
+For example, if the size of the FTP'ed database is smaller than 
+what the CD-Search web service assumes in its database size parameter, 
+the same hit of your query protein to a model will receive a lower E-value 
+in the standalone. Conversely, if the size of the FTP'ed database is larger 
+than what the CD-Search web service assumes in its database size parameter, 
+the same hit of your query protein to a conserved domain model will receive 
+a higher E-value in the standalone.
+
+---------------------------------------------------------- 
+5.2 How can I configure standalone RPS-BLAST to generate the 
+    same results as the CD-Search web service? 
+---------------------------------------------------------- 
+
+If you want standalone RPS-BLAST to use the same database size parameter 
+that is used for the web server (and thereby reproduce the same E-values 
+with standalone RPS-BLAST that are generated by the web service), 
+you can do that by creating an "alias" file on your local computer and 
+placing it in the same directory as the standalone RPS-BLAST executable. 
+The file can have a name such as "mycdd.pal" and can have contents 
+such as the following (where lines starting with "#" are comments):
+
+     #
+     # RPSBLAST alias file
+     #
+     TITLE mycdd
+     #
+     DBLIST ./Cdd
+     #
+     STATS_TOTLEN    5000000
+     STATS_NSEQ      21000
+
+This will now let you search against the database named "Cdd" using the 
+two search set size parameters as specified, e.g.: 
+
+     ~$ rpsblast -query rpstest.tfa -db mycdd -seg no -comp_based_stats 1 -evalue 0.01 -outfmt 7
+# RPSBLAST 2.2.30+
+# Query: gi|156356500|ref|XP_001623960.1| predicted protein [Nematostella vectensis]
+# Database: mycdd
+# Fields: query id, subject id, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 10 hits found
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|259194  28.45   116     73      7       434     545     1       110     2e-07   50.0
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|259194  24.04   104     62      6       54      149     2       96      0.009   35.3
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|215056  21.18   85      61      2       463     541     27      111     8e-04   40.9
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|119391  23.53   51      34      2       493     542     1       47      0.001   38.0
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|119391  21.57   51      35      2       375     424     1       47      0.004   36.0
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|119391  25.58   43      27      2       111     152     1       39      0.009   34.9
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|197660  31.91   47      29      2       432     475     4       50      0.002   36.9
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|197660  31.48   54      31      3       493     545     6       54      0.002   36.5
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|197660  33.33   42      27      1       312     352     2       43      0.007   35.3
+gi|156356500|ref|XP_001623960.1|        gnl|CDD|192197  40.00   40      20      1       235     274     4       39      0.003   36.9
+# BLAST processed 1 queries
+
+In addition to the different statistical parameters, the CD-Search web service 
+does not filter out, by default, compositionally biased regions in the 
+query sequence. In contrast, the standalone RPS-BLAST versions 2.2.28 and up 
+filters them out by default. In the current RPS-BLAST version 2.2.30, you can 
+avoid filtering (masking) by specifying "-seg no", where "seg" represents the 
+SEG algorithm used to compute the filter. The CD-Search web service also 
+employs composition-corrected scoring, use the standalone RPS-BLAST 
+command line option "-comp_based_stats 1" to mirror this behavior. 
+
+Finally, some advanced options in standalone RPS-BLAST are not available 
+in the web service, such as the ability to use a single-hit/two-pass mode 
+in order to detect more distant homologous relationships. Users who select 
+such options in the standalone version may get different search results 
+with the web service.
+
+===============================================================================
+
+  Aron Marchler-Bauer, Renata Geer, 16 January 2015

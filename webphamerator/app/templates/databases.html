@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+
+<a class="top-button btn btn-primary" href="/databases/new">Create Database</a>
+
+<ul class="list-group">
+{% for database in databases %}
+  <a href="/databases/{{ database.id }}" class="list-group-item">
+    <h4>{{ database.display_name }}
+      <small>
+        {{ database.number_of_organisms }} phages,
+        {{ database.number_of_phams }} phams
+      </small>
+    </h4>
+    <p class="list-group-item-text">
+      
+    </p>
+  </a>
+{% endfor %}
+</ul>
+
+
+{% endblock %}

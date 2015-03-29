@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row top-button">
+  <div class="col-xs-9">
+  </div>
+  <div class="col-xs-3">
+    <form method="post">
+      <input type="hidden" name="cancel-all" value="true"></input>
+      <button type="submit" class="btn btn-danger">
+        Cancel all jobs
+      </button>
+    </form>
+  </div>
+</div>
+<div class="row">
+  <div class="col-xs-12">
+    <ul class="list-group">
+    {% for job in jobs %}
+      <a href="/jobs/{{ job.id }}" class="list-group-item
+        {% if job.status_code in ['running', 'queued'] %}
+          list-group-item-info
+        {% endif %}
+        {% if not job.seen %}
+          {{ job.status_code|replaceifequal('success', 'list-group-item-success') }}
+          {{ job.status_code|replaceifequal('failed', 'list-group-item-danger') }}
+        {% endif %}
+      ">
+        <h4>{{ job.database_name }}
+          <small>
+            {{ job.status_code }} - {{ job.modified|humandate }}
+          </small>
+        </h4>
+        <p class="list-group-item-text">
+          Add {{ job.genbank_files_to_add.count() }} phages,
+          remove {{ job.organism_ids_to_delete.count() }} phages
+        </p>
+      </a>
+    {% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% endblock %}

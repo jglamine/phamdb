@@ -1,0 +1,45 @@
+/* Move down content because we have a fixed navbar that is 50px tall */
+body {
+  padding-top: 45px;
+}
+
+.badge-success {
+	background-color: #43ac6a;
+}
+
+.badge-error {
+	background-color: #f04124;
+}
+
+.progress {
+	margin-bottom: 0px;
+}
+
+hr.error {
+	margin-bottom: 0px;
+	margin-top: 0px;
+}
+
+.top-button {
+    margin-bottom: 16px;
+}
+
+.col-centered {
+    float: none;
+    margin: 0 auto;
+}
+
+.glyphicon.spinning {
+    animation: spin 2s infinite linear;
+    -webkit-animation: spin2 2s infinite linear;
+}
+
+@keyframes spin {
+    from { transform: scale(1) rotate(0deg);}
+    to { transform: scale(1) rotate(360deg);}
+}
+
+@-webkit-keyframes spin2 {
+    from { -webkit-transform: rotate(0deg);}
+    to { -webkit-transform: rotate(360deg);}
+}

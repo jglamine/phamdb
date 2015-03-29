@@ -1,0 +1,16 @@
+hhsuite
+kalign
+mysql-server
+python-pip
+build-essential
+python-dev
+libmysqlclient-dev
+python-biopython
+git
+
+# for kclust
+libmysql++-dev
+libmysql++-doc
+libmysql++3
+libboost-regex-dev
+

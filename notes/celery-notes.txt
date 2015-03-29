@@ -1,0 +1,80 @@
+# celery notes
+
+Cancel all jobs
+	# cancel all jobs - canceling just one is dangerous
+
+	app.control.revoke(task_ids, terminate=True, signal='SIGKILL')
+	# in the worker, register a signal handler to raise an exception when the signal is called
+	# example: https://gist.github.com/nonZero/2907502
+	# this way all the contexts still close
+
+	- Termination is dangerous because another task may have started by the time the worker terminates. This is why we only support a 'cancel all jobs' button.
+
+	- to persist task revocations, specify a file to store revoked tasks in:
+	  - celery -A proj worker -l info --statedb=/var/run/celery/worker.state
+
+Launch a job
+	# create an entry in the database, setting the `seen` flag to False
+	# launch the job, sending its id to the worker
+	# save the celery_id in the database
+
+Run a job on a worker
+	# create a Worker subclass
+	# registers on_success, on_failure, and on_finish handlers
+	# keeps a database connection cached
+
+	when a job is started
+		# update database with status, status_message, start_time, and modified
+
+	on_success
+		# update the database with status, status_message
+
+	on_failure
+		# log the exception and traceback
+		# update the database with status, status_message and errors
+
+	on_finish
+		# update the database with runtime, modified
+
+Web UI
+
+	After submitting a job, redirect to the page for that job
+
+	/jobs
+		javascript reloads the page every 10 seconds for waiting and running pages
+
+		List of jobs, sorted by `modified` descending.
+		Running jobs are blue.
+
+		Highlight newly viewed pages:
+			Failed jobs with seen = False are red
+			Succeeded jobs with seen = False are blue
+			seen is set to True
+
+		Information shown about jobs:
+			Database, # of organisms to add, # of organisms to delete,
+			status code, status message, runtime
+
+		Clicking on a job brings you to the page for that job.
+
+		jobs list is paged
+
+	/job/job_id
+		Information is shown about a job.
+
+		Failed jobs have a list of errors.
+
+		Finished and failed jobs have a delete button.
+		Finished, failed, and running jobs have an elapsed time.
+		Finished and failed jobs have 'seen' set to True.
+
+	The Jobs Counter:
+		All pages have three counters:
+			(waiting, running) - blue
+			(finished) - green
+			(failed) - red
+
+		waiting: status = waiting
+		running: status = running
+		failed: status = failed, seen = false
+		finished: status = finished, seen = false

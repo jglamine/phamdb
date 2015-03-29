@@ -1,0 +1,6 @@
+*.o
+*.a
+kDP
+kClust
+kClust_mkAln
+kClust_benchmark

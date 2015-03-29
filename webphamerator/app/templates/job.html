@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+
+<script type="text/javascript" src="/static/js/moment.min.js"></script>
+<script type="text/javascript">
+  window.reactInitialState = {
+    addCount: {{ job.genbank_files_to_add.count()|tojson }},
+    removeCount: {{ job.organism_ids_to_delete.count()|tojson }},
+    statusCode: {{ job.status_code|tojson }},
+    statusMessage: {{ job.status_message|tojson }},
+    startTime: {{ start_time|isodate|tojson }},
+    endTime: {{ end_time|isodate|tojson }},
+    elapsedTime: {{ runtime|tojson }},
+    jobId: {{ job.id|tojson }}
+  };
+</script>
+
+<script type="text/jsx" src="/static/jsx/job.js"></script>
+
+<div id="react-content">
+</div>
+
+{% if phages_to_add|length %}
+<h3>Phages to add</h3>
+<ul class="list-group col-xs-12 col-sm-5 col-md-4 col-lg-3">
+  {% for phage in phages_to_add %}
+  <li class="list-group-item">
+    {{ phage.phage_name }} - {{ phage.genes }} genes
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if phages_to_remove|length %}
+<h3>Phages to remove</h3>
+<ul class="list-group col-xs-12 col-sm-5 col-md-4 col-lg-3">
+  {% for record in phages_to_remove %}
+  <li class="list-group-item">
+    Phage id: {{ record.organism_id }}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% endblock %}

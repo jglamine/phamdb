@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row">
+  <div class="col-xs-9">
+    <p class="lead">
+      {{ phages|length }} phages, {{ database.number_of_phams }} phams
+    </p>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        Connecting with Phamerator
+      </div>
+      <div class="panel-body">
+        <p>
+          In the Phamerator desktop client, add these options under preferences:
+        </p>
+        <dl class="dl-horizontal">
+          <dt>Server</dt>
+          <dd>{{ server_url }}</dd>
+          <dt>Database</dt>
+          <dd>{{ database.name_slug }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xs-3">
+    <form method="post">
+      <input type="hidden" name="delete" value="true"></input>
+      <button type="submit" class="btn btn-danger"
+        {% if database.locked %}
+          disabled="true"
+        {% endif %}
+        >
+          Delete database
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if phages|length %}
+<div class="row">
+  <div class="col-xs-12 col-sm-5 col-md-4 col-lg-3">
+    <div class="panel panel-default ">
+      <div class="panel-heading">Phages</div>
+      <ul class="list-group">
+        {% for phage in phages %}
+        <li class="list-group-item">
+          {{ phage.name }} - id: {{ phage.id }}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
