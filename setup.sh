@@ -6,7 +6,7 @@ cd "$DIR"
 apt-get install $(grep -vE "^\s*#" packages.txt | tr "\n" " ")
 
 virtualenv --system-site-packages env
-echo "$DIR""/phage" > env/lib/python2.7/site-packages/path.pth
+echo "$DIR" > "$DIR"/env/lib/python2.7/site-packages/path.pth
 
 ./update.sh
 
