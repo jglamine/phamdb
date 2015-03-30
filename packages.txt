@@ -1,6 +1,7 @@
 hhsuite
 kalign
 mysql-server
+rabbitmq-server
 python-pip
 python-virtualenv
 build-essential

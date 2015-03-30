@@ -27,8 +27,8 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
             # run rpsblast
             output_filename = os.path.join(output_directory, 'rpsblast.xml')
             expectation_value_cutoff = 0.001
-            cdd_database = os.path.join(_DATA_DIR, 'Cdd', 'Cdd')
-            rpsblast_bin = os.path.join(_DATA_DIR, 'rpsblast')
+            cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database', 'Cdd', 'Cdd')
+            rpsblast_bin = os.path.join(_DATA_DIR, 'ncbi-blast', 'rpsblast')
             cline = NcbirpsblastCommandline(rpsblast_bin,
                                             query=fasta_filename,
                                             db=cdd_database,

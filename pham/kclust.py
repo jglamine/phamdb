@@ -84,7 +84,7 @@ class _KClust(object):
         # run kclust
         output_directory = tempfile.mkdtemp(suffix='kclust')
         try:
-            kclust_path = os.path.join(_DATA_DIR, 'kClust')
+            kclust_path = os.path.join(_DATA_DIR, 'kclust', 'kClust')
             command = '{} -i {} -d {} -s {} -c {}'.format(kclust_path, fasta_input_filename, output_directory, s, c)
             _call(command)
 

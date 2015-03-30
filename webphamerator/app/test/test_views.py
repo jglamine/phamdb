@@ -74,15 +74,6 @@ class TestViews(unittest.TestCase):
                  .count())
         self.assertTrue(found == 0)
 
-    def test_kill_all_jobs(self):
-        # add a finished job
-        # queue three jobs
-        # kill all jobs
-
-        # check that finished job is still there
-        # check that killed job is gone
-        # check that mysql database does not exist
-
     def tearDown(self):
         # delete db dump files saved on disk
         folder = app.config['DATABASE_DUMP_DIR']

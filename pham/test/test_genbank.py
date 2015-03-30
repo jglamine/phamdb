@@ -43,7 +43,7 @@ class TestGenbank(unittest.TestCase):
         phage = pham.genbank.read_file(filename)
         self.assertFalse(phage.is_valid(), 'Phage should be invalid.')
 
-        expected_errors = [pham.genbank.ErrorCode.no_phage_id, pham.genbank.ErrorCode.no_gene_id, pham.genbank.ErrorCode.invalid_gene_location]
+        expected_errors = [pham.genbank.ErrorCode.no_phage_id, pham.genbank.ErrorCode.no_gene_id]
         for error_code in expected_errors:
             self.assertTrue(self._has_error(phage, error_code),
                             'Phage should have error {}'.format(error_code))

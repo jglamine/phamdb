@@ -1,4 +1,2 @@
 GRANT SELECT, SHOW VIEW, PROCESS, REPLICATION CLIENT ON *.* TO 'anonymous'@'localhost';
 set password for 'anonymous'@'localhost' = PASSWORD('anonymous');
-
-
