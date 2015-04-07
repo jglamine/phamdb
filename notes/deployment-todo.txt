@@ -1,8 +1,0 @@
-# Deployment todo:
-
-Setup uwsgi and celery daemons.
-
-Add static directories for genbank files and database dumps.
-Add static directories to the repo.
-Fix initial database creation.
-Fix DB upgrade script history.
