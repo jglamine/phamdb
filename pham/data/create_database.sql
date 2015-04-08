@@ -58,7 +58,7 @@ CREATE TABLE `gene` (
   PRIMARY KEY (`GeneID`),
   KEY `PhageID` (`PhageID`),
   KEY `id` (`id`),
-  CONSTRAINT `gene_ibfk_1` FOREIGN KEY (`PhageID`) REFERENCES `phage` (`PhageID`) ON UPDATE CASCADE
+  CONSTRAINT `gene_ibfk_1` FOREIGN KEY (`PhageID`) REFERENCES `phage` (`PhageID`) ON UPDATE CASCADE ON DELETE CASCADE
 ) DEFAULT CHARSET=latin1;
 
 CREATE TABLE `gene_domain` (
@@ -71,8 +71,8 @@ CREATE TABLE `gene_domain` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `GeneID__hit_id` (`GeneID`,`hit_id`),
   KEY `hit_id` (`hit_id`),
-  CONSTRAINT `gene_domain_ibfk_1` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE,
-  CONSTRAINT `gene_domain_ibfk_2` FOREIGN KEY (`hit_id`) REFERENCES `domain` (`hit_id`) ON UPDATE CASCADE
+  CONSTRAINT `gene_domain_ibfk_1` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `gene_domain_ibfk_2` FOREIGN KEY (`hit_id`) REFERENCES `domain` (`hit_id`) ON UPDATE CASCADE ON DELETE CASCADE
 ) DEFAULT CHARSET=latin1;
 
 CREATE TABLE `node` (
@@ -108,7 +108,7 @@ CREATE TABLE `pham` (
   PRIMARY KEY (`GeneID`),
   KEY `orderAdded_index` (`orderAdded`),
   KEY `name_index` (`name`),
-  CONSTRAINT `pham_ibfk_2` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE
+  CONSTRAINT `pham_ibfk_2` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE
 ) DEFAULT CHARSET=latin1;
 
 CREATE TABLE `pham_color` (
@@ -128,8 +128,8 @@ CREATE TABLE `scores_summary` (
   PRIMARY KEY (`id`),
   KEY `scores_summary_ibfk_1` (`query`),
   KEY `scores_summary_ibfk_2` (`subject`),
-  CONSTRAINT `scores_summary_ibfk_1` FOREIGN KEY (`query`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE,
-  CONSTRAINT `scores_summary_ibfk_2` FOREIGN KEY (`subject`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE
+  CONSTRAINT `scores_summary_ibfk_1` FOREIGN KEY (`query`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `scores_summary_ibfk_2` FOREIGN KEY (`subject`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE
 ) DEFAULT CHARSET=latin1;
 
 CREATE TABLE `version` (

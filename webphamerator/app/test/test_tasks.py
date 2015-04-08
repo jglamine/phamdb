@@ -9,7 +9,7 @@ from contextlib import closing
 from webphamerator.app import app, db, celery, tasks
 from webphamerator.app.models import GenbankFile, Database, Job
 
-class TestAddGenbankFile(unittest.TestCase):
+class TestDatabaseTasks(unittest.TestCase):
     def setUp(self):
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
@@ -30,6 +30,46 @@ class TestAddGenbankFile(unittest.TestCase):
 
     def _ignore_celery_exceptions(self):
         celery.conf.update({'CELERY_EAGER_PROPAGATES_EXCEPTIONS': False})
+
+    def test_modify_database_task(self):
+        # create a blank database
+        database_record = Database(display_name=self.database_names[0],
+                                   name_slug=Database.phamerator_name_for(self.database_names[0]),
+                                   description='',
+                                   locked=True,
+                                   visible=False,
+                                   cdd_search=False)
+        db.session.add(database_record)
+        db.session.commit()
+        job_record = Job(database_id=database_record.id,
+                         database_name=database_record.display_name,
+                         seen=False)
+        db.session.add(job_record)
+        db.session.commit()
+
+        db_record_id = database_record.id
+        job_record_id = job_record.id
+
+        result = tasks.CreateDatabase().delay(job_record.id)
+
+        database_record = db.session.query(Database).filter(Database.id == db_record_id).first()
+        job_record = db.session.query(Job).filter(Job.id == job_record_id).first()
+
+        # run the modify job
+        job_record = Job(database_id=database_record.id,
+                         database_name=database_record.display_name,
+                         seen=False)
+        db.session.add(job_record)
+        db.session.commit()
+
+        # run the task
+        result = tasks.ModifyDatabase().delay(job_record.id)
+
+        # check that the job passed
+        job_record = db.session.query(Job).filter(Job.id == job_record_id).first()
+        database_record = db.session.query(Database).filter(Database.id == db_record_id).first()
+        self.assertEqual(job_record.status_code, 'success')
+        self.assertTrue(self._database_exists(database_record.mysql_name()))
 
     def test_create_database_task(self):
         # put a job in the database

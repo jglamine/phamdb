@@ -1,6 +1,7 @@
 import unittest
 import os.path
 import datetime
+import shutil
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
@@ -167,6 +168,82 @@ class TestAddGenbankFile(unittest.TestCase):
                                  content_type='application/json')
 
         self.assertEqual(response.status_code, 400, response.get_data())
+
+    def test_modify_database(self):
+        phage_path = os.path.join(_DATA_DIR, 'Filichino-small.gb')
+        temp_phage_path = os.path.join(_DATA_DIR, 'temp.gb')
+        shutil.copyfile(phage_path, temp_phage_path)
+        file_record = GenbankFile(filename=temp_phage_path)
+        db.session.add(file_record)
+        db.session.commit()
+        self.assertIsNone(file_record.job_id)
+        file_record_id = file_record.id
+
+        # modify a database which does not exist
+        post_data = {
+            'file_ids': [file_record.id],
+            'phages_to_delete': [],
+            'test': True
+        }
+        response = self.app.post('/api/database/24601',
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.get_data())
+        self.assertTrue(len(response_data['errors']) > 0)
+
+        # create a blank database
+        post_data = {
+            'name': self.database_names[0],
+            'description': 'A database.',
+            'file_ids': [],
+            'template': None,
+            'cdd_search': False,
+        }
+        response = self.app.post('/api/databases',
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        database_record = (db.session.query(Database)
+                           .filter(Database.display_name == self.database_names[0])
+                           .first())
+        self.assertIsNotNone(database_record)
+
+        # add a phage
+        post_data = {
+            'file_ids': [file_record.id],
+            'phages_to_delete': []
+        }
+        response = self.app.post('/api/database/{}'.format(database_record.id),
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.get_data())
+        self.assertTrue(len(response_data['errors']) == 0)
+        # check number of phages in database record
+        database_record = (db.session.query(Database)
+                           .filter(Database.display_name == self.database_names[0])
+                           .first())
+        self.assertIsNotNone(database_record)
+        self.assertEqual(database_record.number_of_organisms, 1)
+
+        # remove a phage
+        post_data = {
+            'file_ids': [],
+            'phages_to_delete': ['Filichino']
+        }
+        response = self.app.post('/api/database/{}'.format(database_record.id),
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.get_data())
+        self.assertTrue(len(response_data['errors']) == 0)
+        # check number of phages in database record
+        database_record = (db.session.query(Database)
+                           .filter(Database.display_name == self.database_names[0])
+                           .first())
+        self.assertIsNotNone(database_record)
+        self.assertEqual(database_record.number_of_organisms, 0)
 
     def test_delete_genbank_file(self):
         # create a file

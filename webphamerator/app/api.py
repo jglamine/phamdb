@@ -18,7 +18,6 @@ def new_database():
             file_ids: [],
             template: "",
             cdd_search: true,
-            phages_to_delete: [],
             test: true // optional
         }
 
@@ -89,6 +88,7 @@ def new_database():
                             seen=False)
     db.session.add(job_record)
     db.session.commit()
+    job_id = job_record.id
 
     if len(file_ids):
         (db.session.query(models.GenbankFile)
@@ -99,10 +99,98 @@ def new_database():
         db.session.commit()
 
     if not test:
-        result = tasks.CreateDatabase().delay(job_record.id)
+        result = tasks.CreateDatabase().delay(job_id)
 
     return flask.jsonify(errors=[],
-                         job_id=job_record.id), 201
+                         job_id=job_id), 201
+
+@app.route('/api/database/<int:database_id>', methods=['POST'])
+def modify_database(database_id):
+    """
+    expected POST data:
+        {
+            file_ids: [],
+            phages_to_delete: [],
+            test: true // optional
+        }
+
+
+    status codes:
+        201: success, job queued
+        400: validation error occurred
+            response object will contain an 'errors' array.
+        412: POST data missing a required property
+    """
+    errors = []
+
+    json_data = request.get_json()
+    if not 'file_ids' in json_data:
+        return 'Missing property \'file_ids\'.', 412
+    if not 'phages_to_delete' in json_data:
+        return 'Missing property \'phages_to_delete\'.', 412
+    file_ids = json_data.get('file_ids', [])
+    phage_ids = json_data.get('phages_to_delete', [])
+    test = json_data.get('test', False)
+
+    database_record = (db.session.query(models.Database)
+                       .filter(models.Database.id == database_id)
+                       .first())
+    if database_record is None:
+        errors.append('Unable to locate database.')
+
+    file_records = []
+    if len(file_ids):
+        file_records = (db.session.query(models.GenbankFile)
+                        .filter(models.GenbankFile.id.in_(file_ids))
+                        .all())
+        if len(file_records) != len(file_ids):
+            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - len(file_records)))
+
+    if len(errors):
+        return flask.jsonify(errors=errors), 400
+
+    genbank_filepaths = [x.filename for x in file_records]
+
+    # check database transaction for errors
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    database_id = database_record.mysql_name()
+    success, errors = pham.db.check_rebuild(server, database_id,
+                                            organism_ids=phage_ids,
+                                            genbank_files=genbank_filepaths)
+
+    if not success:
+        return flask.jsonify(errors=errors,
+                             job_id=None), 400
+
+    job_record = models.Job(database_id=database_record.id,
+                            status_code='queued',
+                            status_message='Waiting to run.',
+                            database_name=database_record.display_name,
+                            seen=False)
+    db.session.add(job_record)
+    db.session.commit()
+    job_id = job_record.id
+
+    for phage_id in phage_ids:
+        record = models.JobOrganismToDelete(organism_id=phage_id,
+                                            job_id=job_id)
+        db.session.add(record)
+    if len(phage_ids):
+        db.session.commit()
+
+    if len(file_ids):
+        (db.session.query(models.GenbankFile)
+            .filter(models.GenbankFile.id.in_(file_ids))
+            .update({ models.GenbankFile.job_id: job_id },
+                    synchronize_session='fetch')
+        )
+        db.session.commit()
+
+    if not test:
+        result = tasks.ModifyDatabase().delay(job_id)
+
+    return flask.jsonify(errors=[],
+                         job_id=job_id), 200
 
 @app.route('/api/database-name-taken', methods=['GET'])
 def database_name_taken():

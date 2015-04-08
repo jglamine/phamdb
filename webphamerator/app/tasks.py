@@ -24,17 +24,34 @@ class CallbackObserver(object):
                 job_record.status_code = 'failed'
         db.session.commit()
 
+class _BaseDatabaseTask(celery.Task):
+    abstract = True
+    success_message = None
 
-class CreateDatabase(celery.Task):
+    def __init__(self):
+        self._server = None
 
-    def _get_server(self):
-        return pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    @property
+    def server(self):
+        if self._server is None:
+            self._server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+        return self._server
+
+    def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
+        pass
+
+    def failure_hook(self, database_record, job_record, exception):
+        pass
 
     def _get_job(self, job_id):
-        return db.session.query(models.Job).filter(models.Job.id == job_id).first()
+        return (db.session.query(models.Job)
+                .filter(models.Job.id == job_id)
+                .first())
 
     def _get_database(self, database_id):
-        return db.session.query(models.Database).filter(models.Database.id == database_id).first()
+        return (db.session.query(models.Database)
+                .filter(models.Database.id == database_id)
+                .first())
 
     def run(self, job_id):
         # get job record from the database
@@ -47,16 +64,17 @@ class CreateDatabase(celery.Task):
         job_record.task_id = self.request.id
 
         genbank_paths = [r.filename for r in job_record.genbank_files_to_add.all()]
-        organims_ids = [r.organims_id for r in job_record.organism_ids_to_delete.all()]
+        organism_ids = [r.organism_id for r in job_record.organism_ids_to_delete.all()]
 
-        # update database with status, status_message, start_time, modified
+        # update job and database with status, status_message, start_time, modified
         db.session.commit()
 
         observer = CallbackObserver(job_id)
-        success = pham.db.create(self._get_server(), database_record.mysql_name(),
-                                 genbank_files=genbank_paths,
-                                 cdd_search=database_record.cdd_search,
-                                 callback=observer.handle_call)
+        success = self.database_call(database_record.mysql_name(),
+                                     genbank_paths,
+                                     organism_ids,
+                                     database_record.cdd_search,
+                                     observer.handle_call)
         if not success:
             raise RuntimeError
 
@@ -76,7 +94,7 @@ class CreateDatabase(celery.Task):
         except OSError:
             pass
 
-        pham.db.export(self._get_server(), database_record.mysql_name(), path + '.sql')
+        pham.db.export(self.server, database_record.mysql_name(), path + '.sql')
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         job_id = args[0]
@@ -86,10 +104,7 @@ class CreateDatabase(celery.Task):
             job_record.status_code = 'failed'
             job_record.status_message = 'An unexpected error occurred.'
 
-        if not isinstance(exc, pham.db.DatabaseAlreadyExistsError):
-            pham.db.delete(self._get_server(), database_record.mysql_name())
-        db.session.delete(database_record)
-
+        self.failure_hook(database_record, job_record, exc)
         self.always(job_record)
 
     def on_success(self, return_value, task_id, args, kwargs):
@@ -97,14 +112,13 @@ class CreateDatabase(celery.Task):
         job_record = self._get_job(job_id)
         database_record = self._get_database(job_record.database_id)
         job_record.status_code = 'success'
-        job_record.status_message = 'Database created.'
+        job_record.status_message = self.success_message
 
         database_record.visible = True
         database_record.locked = False
         database_record.created = datetime.datetime.utcnow()
         database_record.modified = datetime.datetime.utcnow()
-        server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
-        with closing(server.get_connection(database=database_record.mysql_name())) as cnx:
+        with closing(self.server.get_connection(database=database_record.mysql_name())) as cnx:
             database_record.number_of_organisms = pham.query.count_phages(cnx)
             database_record.number_of_phams = pham.query.count_phams(cnx)
 
@@ -127,3 +141,35 @@ class CreateDatabase(celery.Task):
             file_record.filename = None
 
         db.session.commit()
+
+class CreateDatabase(_BaseDatabaseTask):
+    abstract = False
+    success_message = 'Database created.'
+
+    def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
+        return pham.db.create(self.server, database_id,
+                              genbank_files=genbank_files,
+                              cdd_search=cdd_search,
+                              callback=callback)
+
+    def failure_hook(self, database_record, job_record, exception):
+        if not isinstance(exception, pham.db.DatabaseAlreadyExistsError):
+            pham.db.delete(self.server(), database_record.mysql_name())
+        else:
+            job_record.status_message = 'Database already exists.'
+        db.session.delete(database_record)
+
+class ModifyDatabase(_BaseDatabaseTask):
+    abstract = False
+    success_message = 'Database updated.'
+
+    def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
+        return pham.db.rebuild(self.server, database_id,
+                               organism_ids_to_delete=organism_ids,
+                               genbank_files_to_add=genbank_files,
+                               cdd_search=cdd_search,
+                               callback=callback)
+
+    def failure_hook(self, database_record, job_record, exception):
+        if isinstance(exception, pham.db.DatabaseDoesNotExistError):
+            job_record.status_message = 'Database does not exist.'

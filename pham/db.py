@@ -71,6 +71,24 @@ def check_create(server, id, genbank_files=None):
 
     return success, observer.error_messages()
 
+def check_rebuild(server, id, organism_ids=None, genbank_files=None):
+    observer = _CallbackObserver()
+
+    try:
+        success = rebuild(server, id,
+                          organism_ids_to_delete=organism_ids,
+                          genbank_files_to_add=genbank_files,
+                          cdd_search=False,
+                          callback=observer.record_call,
+                          commit=False)
+    except DatabaseDoesNotExistError as e:
+        errors = []
+        errors.append('Database does not exist.')
+        errors += observer.error_messages()
+        return False, errors
+
+    return success, observer.error_messages()
+
 def create(server, id, genbank_files=None, cdd_search=True, commit=True,
            callback=_default_callback):
     """
@@ -229,30 +247,36 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                         gene_ids.append(gene_id)
 
                     # cluster genes into phams
-                    pham_id_to_gene_ids = pham.kclust.cluster(sequences, gene_ids,
-                        on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
+                    if len(gene_ids):
+                        pham_id_to_gene_ids = pham.kclust.cluster(sequences, gene_ids,
+                            on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
 
-                    # calculate the colors for the phams
-                    pham_id_to_color = _assign_colors(pham_id_to_gene_ids, cursor)
+                        # calculate the colors for the phams
+                        pham_id_to_color = _assign_colors(pham_id_to_gene_ids, cursor)
 
-                    # clear old phams and colors from database
-                    # write new phams and colors to database
-                    cursor.execute('TRUNCATE TABLE pham')
-                    cursor.execute('TRUNCATE TABLE pham_color')
+                        # clear old phams and colors from database
+                        # write new phams and colors to database
+                        cursor.execute('TRUNCATE TABLE pham')
+                        cursor.execute('TRUNCATE TABLE pham_color')
 
-                    for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
-                        for gene_id in gene_ids:
+                        for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
+                            for gene_id in gene_ids:
+                                cursor.execute('''
+                                               INSERT INTO pham(GeneID, name)
+                                               VALUES (%s, %s)
+                                               ''', (gene_id, pham_id)
+                                               )
+
+                        for pham_id, color in pham_id_to_color.iteritems():
                             cursor.execute('''
-                                           INSERT INTO pham(GeneID, name)
+                                           INSERT INTO pham_color(name, color)
                                            VALUES (%s, %s)
-                                           ''', (gene_id, pham_id)
-                                           )
-
-                    for pham_id, color in pham_id_to_color.iteritems():
-                        cursor.execute('''
-                                       INSERT INTO pham_color(name, color)
-                                       VALUES (%s, %s)
-                                       ''', (pham_id, color))
+                                           ''', (pham_id, color))
+                    else:
+                        # there are no genes in the database
+                        # clear all phams and colors from database
+                        cursor.execute('TRUNCATE TABLE pham')
+                        cursor.execute('TRUNCATE TABLE pham_color')
 
             if cdd_search and len(new_gene_ids):
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
