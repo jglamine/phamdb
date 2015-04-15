@@ -17,3 +17,6 @@ cd ..
 
 deactivate
 
+# restart the server
+sudo service celeryd restart
+sudo service uwsgi restart
