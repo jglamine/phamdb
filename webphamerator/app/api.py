@@ -111,6 +111,7 @@ def modify_database(database_id):
         {
             file_ids: [],
             phages_to_delete: [],
+            description: "" // optional,
             test: true // optional
         }
 
@@ -130,6 +131,7 @@ def modify_database(database_id):
         return 'Missing property \'phages_to_delete\'.', 412
     file_ids = json_data.get('file_ids', [])
     phage_ids = json_data.get('phages_to_delete', [])
+    description = json_data.get('description')
     test = json_data.get('test', False)
 
     database_record = (db.session.query(models.Database)
@@ -137,6 +139,8 @@ def modify_database(database_id):
                        .first())
     if database_record is None:
         errors.append('Unable to locate database.')
+    elif database_record.locked is True:
+        errors.append('This database already has a queued job.')
 
     file_records = []
     if len(file_ids):
@@ -187,6 +191,11 @@ def modify_database(database_id):
         db.session.commit()
 
     if not test:
+        if description is not None:
+            database_record.description = description
+        database_record.locked = True
+        db.session.commit()
+        
         result = tasks.ModifyDatabase().delay(job_id)
 
     return flask.jsonify(errors=[],

@@ -19,11 +19,11 @@ var DatabaseNameField = React.createClass({
     var classes = cs({
       'form-group': true,
       'has-feedback': true,
-      'has-success': this.props.isNameValid,
+      'has-success': this.props.isNameValid && !this.props.disabled,
       'has-error': this.props.isNameValid === false
     });
     var feedbackIcon = null;
-    if (this.props.isNameValid) {
+    if (this.props.isNameValid && !this.props.disabled) {
       feedbackIcon = (<span className="glyphicon glyphicon-ok form-control-feedback"></span>);
     }
     if (this.props.isNameValid === false) {
@@ -37,6 +37,7 @@ var DatabaseNameField = React.createClass({
           ref="nameInput"
           id="name"
           value={this.props.name}
+          disabled={this.props.disabled}
           onChange={this.handleChange} >
         </input>
         {feedbackIcon}
@@ -76,11 +77,62 @@ var DatabaseCddCheckbox = React.createClass({
           <input type="checkbox"
             id="cddCheckbox"
             checked={this.props.checked}
+            disabled={this.props.disabled}
             onChange={this.handleChange}>
           </input>
           Search Conserved Domain Database
         </label>
       </div>
+    );
+  }
+});
+
+var PhageDeleteList = React.createClass({
+  render: function() {
+    var phages = [];
+    var index = 0;
+    var ctx = this;
+    this.props.phages.forEach(function(phage) {
+      phages.push(<SelectablePhage
+                   name={phage.name}
+                   phage_id={phage.id}
+                   selected={phage.selected}
+                   index={index}
+                   setSelected={ctx.props.setSelected} />);
+      index += 1;
+    });
+
+    return (
+      <div>
+        <h2>Current Phages</h2>
+        <p>
+          Uncheck a phage to remove it from the database.
+        </p>
+        <div className="phage-list list-group">{phages}</div>
+      </div>
+    );
+  }
+});
+
+var SelectablePhage = React.createClass({
+  handleCheckbox: function() {
+    this.props.setSelected(this.props.index, !this.props.selected);
+  },
+  render: function() {
+    return (
+      <li className="list-group-item checkbox container-fluid">
+        <div className="row">
+            <div className="col-xs-12">
+              <label>
+                <input type="checkbox"
+                  checked={this.props.selected}
+                  onChange={this.handleCheckbox}>
+                </input>
+                <strong>{this.props.name}</strong>  <small>(id: {this.props.phage_id})</small>
+              </label>
+            </div>
+        </div>
+      </li>
     );
   }
 });
@@ -229,7 +281,7 @@ var PhageFileList = React.createClass({
     this.props.files.forEach(function(file) {
       items.push(<PhageFile
                   file={file.file}
-                  fild_id={file.file_id}
+                  file_id={file.file_id}
                   progress={file.progress}
                   selected={file.selected}
                   phage_id={file.phage_id}
@@ -241,7 +293,7 @@ var PhageFileList = React.createClass({
       index += 1;
     });
     return (
-      <div className="list-group">{items}</div>
+      <div className="phage-list list-group">{items}</div>
     );
   }
 });
@@ -269,10 +321,18 @@ var CreateDatabaseFormSummary = React.createClass({
       }
     });
 
+    var deleteCount = 0;
+    _.each(this.props.phages, function(phage) {
+      if (phage.selected === false) {
+        deleteCount += 1;
+      }
+    });
+
     return (
       <div>
         <h2>Summary</h2>
         <p>Add {uploadCount} {uploadCount === 1 ? "phage" : "phages"}</p>
+        <p>Delete {deleteCount} {deleteCount === 1 ? "phage" : "phages"}</p>
       </div>
     );
   }
@@ -287,7 +347,7 @@ var CreateDatabaseButton = React.createClass({
         <button type="button" className="btn btn-primary btn-large btn-block"
            disabled={!readyToSubmit}
            onClick={this.props.handleClick}>
-          Create Database
+          {this.props.text}
         </button>
         <LoadingModal />
       </div>
@@ -350,17 +410,30 @@ var SubmissionErrors = React.createClass({
 });
 
 var CreateDatabaseForm = React.createClass({
+  // when databaseId is not null, it indicates that we are editing rather
+  // than creating a database.
   getInitialState: function() {
-    return {
+    var state = {
       name: '',
       isNameValid: null,
       description: '',
       cddSearch: false,
+      phages: [],
       files: [],
       uploadSlots: 1,
       handleUploadsComplete: null,
-      submissionErrors: []
+      submissionErrors: [],
+      databaseId: null
     };
+
+    if (window.reactInitialState) {
+      state = _.assign(state, window.reactInitialState);
+      _.each(state.phages, function(phage) {
+        phage.selected = true;
+      });
+    }
+
+    return state;
   },
   validateDatabaseName: function(nameText) {
     if (nameText.length === 0) {
@@ -383,7 +456,6 @@ var CreateDatabaseForm = React.createClass({
       })
       .fail(function(data) {
         if (data.status === 409) {
-          console.log('set');
           ctx.setState({
             isNameValid: false
           });
@@ -518,6 +590,13 @@ var CreateDatabaseForm = React.createClass({
       files: files
     });
   },
+  setPhageSelected: function(index, selected) {
+    var phages = this.state.phages.slice();
+    phages[index].selected = selected;
+    this.setState({
+      phages: phages
+    });
+  },
   handleCddInput: function(checked) {
     this.setState({
       cddSearch: checked
@@ -536,11 +615,18 @@ var CreateDatabaseForm = React.createClass({
     });
 
     var file_ids = _.filter(this.state.files, function(file) {
-        return file.selected === true && file.file_id !== null;
-      })
-      .map(function(file) {
-        return file.file_id;
-      });
+      return file.selected === true && file.file_id !== null;
+    })
+    .map(function(file) {
+      return file.file_id;
+    });
+
+    var phage_ids_to_delete = _.filter(this.state.phages, function(phage) {
+      return phage.selected === false;
+    })
+    .map(function(phage) {
+      return phage.id;
+    });
 
     var data = {
         name: this.state.name,
@@ -548,11 +634,16 @@ var CreateDatabaseForm = React.createClass({
         cdd_search: this.state.cddSearch,
         file_ids: file_ids,
         template: null,
-        phages_to_delete: []
+        phages_to_delete: phage_ids_to_delete
       };
 
+    var apiUrl = '/api/databases';
+    if (this.state.databaseId !== null) {
+      apiUrl = '/api/database/' + this.state.databaseId;
+    }
+
     $.ajax({
-      url: '/api/databases',
+      url: apiUrl,
       type: 'post',
       dataType: 'json',
       contentType: 'application/json',
@@ -585,6 +676,20 @@ var CreateDatabaseForm = React.createClass({
     this.validateDatabaseName = _.debounce(this.validateDatabaseName, 800);
   },
   render: function() {
+    var submitButtonText = "Create Database";
+    if (this.state.databaseId !== null) {
+      submitButtonText = "Submit";
+    }
+
+    var phages = null;
+    if (this.state.databaseId !== null) {
+      phages = (
+        <PhageDeleteList
+          phages={this.state.phages}
+          setSelected={this.setPhageSelected} />
+      );
+    }
+
     return (
       <div>
         <SubmissionErrors
@@ -592,20 +697,26 @@ var CreateDatabaseForm = React.createClass({
         <DatabaseNameField
           name={this.state.name}
           isNameValid={this.state.isNameValid}
-          onUserInput={this.handleNameInput} />
+          onUserInput={this.handleNameInput}
+          disabled={this.state.databaseId !== null} />
         <DatabaseDescriptionField
           description={this.state.description}
           onUserInput={this.handleDescriptionInput} />
         <DatabaseCddCheckbox
           checked={this.state.cddSearch}
-          onUserInput={this.handleCddInput}/>
+          onUserInput={this.handleCddInput}
+          disabled={this.state.databaseId !== null} />
+        {phages}
         <PhageUploadForm
           files={this.state.files}
           handleFiles={this.handleFiles}
           setFileState={this.setFileState} />
-        <CreateDatabaseFormSummary files={this.state.files} />
+        <CreateDatabaseFormSummary
+          files={this.state.files}
+          phages={this.state.phages} />
         <CreateDatabaseButton
           handleClick={this.handleSubmit}
+          text={submitButtonText}
           isNameValid={this.state.isNameValid}
           uploadSlots={this.state.uploadSlots} />
       </div>

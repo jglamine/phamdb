@@ -1,6 +1,7 @@
 /* Move down content because we have a fixed navbar that is 50px tall */
 body {
   padding-top: 45px;
+  padding-bottom: 16px;
 }
 
 .badge-success {
@@ -9,6 +10,11 @@ body {
 
 .badge-error {
 	background-color: #f04124;
+}
+
+.phage-list {
+    max-height: 50em;
+    overflow-y: auto;
 }
 
 .progress {

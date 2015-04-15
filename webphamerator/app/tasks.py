@@ -27,6 +27,7 @@ class CallbackObserver(object):
 class _BaseDatabaseTask(celery.Task):
     abstract = True
     success_message = None
+    type_code = None
 
     def __init__(self):
         self._server = None
@@ -61,6 +62,7 @@ class _BaseDatabaseTask(celery.Task):
         job_record.modified = datetime.datetime.utcnow()
         job_record.seen = False
         job_record.status_code = 'running'
+        job_record.type_code = self.type_code
         job_record.task_id = self.request.id
 
         genbank_paths = [r.filename for r in job_record.genbank_files_to_add.all()]
@@ -145,6 +147,7 @@ class _BaseDatabaseTask(celery.Task):
 class CreateDatabase(_BaseDatabaseTask):
     abstract = False
     success_message = 'Database created.'
+    type_code = 'create'
 
     def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
         return pham.db.create(self.server, database_id,
@@ -162,6 +165,7 @@ class CreateDatabase(_BaseDatabaseTask):
 class ModifyDatabase(_BaseDatabaseTask):
     abstract = False
     success_message = 'Database updated.'
+    type_code = 'edit'
 
     def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
         return pham.db.rebuild(self.server, database_id,

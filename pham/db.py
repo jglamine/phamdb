@@ -106,7 +106,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
                            """.format(id))
         cnx.commit()
 
-    callback(CallbackCode.status, 'initializing database', 1, 2)
+    callback(CallbackCode.status, 'initializing daitabase', 1, 2)
     try:
         with closing(server.get_connection(database=id)) as cnx:
             cnx.start_transaction()
@@ -188,7 +188,8 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                 for phage_id in duplicate_phage_ids_on_server:
                     filename = phage_id_to_filenames[phage_id][0]
                     callback(CallbackCode.duplicate_organism, phage_id, filename)
-                for phage_id, filenames in phage_id_to_filenames.iteritems():
+                for phage_id in duplicate_phage_ids:
+                    filenames = phage_id_to_filenames[phage_id]
                     callback(CallbackCode.duplicate_genbank_files, phage_id, filenames)
 
             if not valid:
@@ -256,8 +257,8 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
 
                         # clear old phams and colors from database
                         # write new phams and colors to database
-                        cursor.execute('TRUNCATE TABLE pham')
-                        cursor.execute('TRUNCATE TABLE pham_color')
+                        cursor.execute('DELETE FROM pham')
+                        cursor.execute('DELETE FROM pham_color')
 
                         for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
                             for gene_id in gene_ids:
@@ -275,8 +276,8 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                     else:
                         # there are no genes in the database
                         # clear all phams and colors from database
-                        cursor.execute('TRUNCATE TABLE pham')
-                        cursor.execute('TRUNCATE TABLE pham_color')
+                        cursor.execute('DELETE FROM pham')
+                        cursor.execute('DELETE FROM pham_color')
 
             if cdd_search and len(new_gene_ids):
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
@@ -578,7 +579,7 @@ def message_for_callback(code, *args, **kwargs):
         message = 'Unable to find uploaded genbank file.'
     elif code == CallbackCode.gene_id_already_exists:
         phage_id = args[0]
-        message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(gene_id)
+        message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
     return message
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')

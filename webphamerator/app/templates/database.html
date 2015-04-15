@@ -3,9 +3,15 @@
 
 <div class="row">
   <div class="col-xs-9">
+    {% if database.locked %}
+      <button class="top-button btn btn-primary" disabled="true">Edit Database</button>
+    {% else %}
+      <a class="top-button btn btn-primary" href="/databases/{{ database.id }}/edit">Edit Database</a>
+    {% endif %}
     <p class="lead">
       {{ phages|length }} phages, {{ database.number_of_phams }} phams
     </p>
+    <p>{{ database.description }}</p>
     <div class="panel panel-default">
       <div class="panel-heading">
         Connecting with Phamerator

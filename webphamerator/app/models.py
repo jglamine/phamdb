@@ -49,6 +49,7 @@ class Job(db.Model):
     task_id = db.Column(db.String(64))
     status_code = db.Column(db.String(32))
     status_message = db.Column(db.String(255))
+    type_code = db.Column(db.String(32))
     modified = db.Column(db.DateTime(), default=datetime.datetime.utcnow()) # used to sort when displaying
     start_time = db.Column(db.DateTime())
     runtime = db.Column(db.Interval())

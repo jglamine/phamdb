@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div id="react-content">
+</div>
+<script type="text/javascript">
+  window.reactInitialState = {
+    databaseId: {{ database.id|tojson }},
+    name: {{ database.display_name|tojson }},
+    cddSearch: {{ database.cdd_search|tojson }},
+    description: {{ database.description|tojson }},
+    isNameValid: true,
+    phages: {{ phages|tojson }}
+  };
+</script>
+<script type="text/jsx" src="/static/jsx/create-database.js"></script>
+
+{% endblock %}

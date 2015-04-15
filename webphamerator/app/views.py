@@ -66,6 +66,9 @@ class PhageViewModel(object):
         self.id = id
         self.genes = genes
 
+    def to_dict(self):
+        return self.__dict__
+
 @app.route('/databases/<int:db_id>', methods=['GET'])
 def database(db_id):
     database = (db.session.query(models.Database)
@@ -116,6 +119,32 @@ def delete_database(db_id):
     db.session.commit()
     return redirect(url_for('databases'), code=302)
 
+@app.route('/databases/<int:db_id>/edit', methods=['GET'])
+def edit_database(db_id):
+    database = (db.session.query(models.Database)
+                .filter(models.Database.visible == True)
+                .filter(models.Database.id == db_id)
+                .first()
+                )
+
+    if database is None:
+        abort(404)
+
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    phage_view_models = []
+    with closing(server.get_connection(database=database.mysql_name())) as cnx:
+        for row in pham.query.list_organisms(cnx):
+            phage_view_models.append(PhageViewModel(
+                                     id=row[0],
+                                     name=row[1]
+                                     ))
+
+    return render_template('edit-database.html',
+                           title='Edit Database - {}'.format(database.display_name),
+                           database=database,
+                           phages=[phage.to_dict() for phage in phage_view_models],
+                           navbar=get_navbar('/databases'))
+
 @app.route('/jobs')
 def jobs():
     jobs = (db.session.query(models.Job)
@@ -151,12 +180,22 @@ def cancel_all_jobs():
     jobs = (db.session.query(models.Job)
             .filter(models.Job.status_code.in_(('running', 'queued')))
             .all())
-    database_ids = [job.database_id for job in jobs]
-    (db.session.query(models.Database)
-     .filter(models.Database.id.in_(database_ids))
-     .delete(synchronize_session='fetch'))
+
+    # delete database entries
+    database_ids = [job.database_id for job in jobs if job.type_code == 'create']
+    if len(database_ids):
+        (db.session.query(models.Database)
+         .filter(models.Database.id.in_(database_ids))
+         .delete(synchronize_session='fetch'))
+
     for job in jobs:
         db.session.delete(job)
+
+    # unlock all databases
+    (db.session.query(models.Database)
+     .filter(models.Database.locked == True)
+     .update({'locked': False}))
+
     db.session.commit()
 
     return redirect(url_for('jobs'), code=302)
