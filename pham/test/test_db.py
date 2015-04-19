@@ -6,11 +6,13 @@ from nose.tools import ok_, eq_
 import unittest
 import pham.db
 import pham.query
+import pham.db_object
 import pham.test.util as util
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 _DB_ID = 'test_database'
 _DB_ID_2 = 'test_database_2'
+_TEMP_GB = os.path.join(_DATA_DIR, 'writeanaya.gb')
 
 class TestDb(unittest.TestCase):
 
@@ -30,6 +32,25 @@ class TestDb(unittest.TestCase):
                 with closing(cnx.cursor()) as cursor:
                     cursor.execute('SHOW DATABASES;')
                     cursor.fetchall()
+
+    def test_export_to_genbank(self):
+        server = pham.db.DatabaseServer('localhost', 'root')
+        db_filename = os.path.join(_DATA_DIR, 'anaya-no-cdd.sql')
+        util.import_database(server, _DB_ID, db_filename)
+
+        # test read phage
+        with closing(server.get_connection(database=_DB_ID)) as cnx:
+            phage = pham.db_object.Phage.from_database(cnx, '1034152')
+            self.assertEqual(len(phage.genes), 98)
+            self.assertEqual(phage.id, '1034152')
+
+            self.assertRaises(pham.db_object.PhageNotFoundError, pham.db_object.Phage.from_database, cnx, 'id does not exist')
+
+        # test write phage
+        pham.genbank.write_file(phage, _TEMP_GB)
+        phage2 = pham.genbank.read_file(_TEMP_GB)
+        self.assertEqual(len(phage.genes), len(phage2.genes))
+        self.assertEqual(phage.id, phage2.id)
 
     def test_load(self):
         server = pham.db.DatabaseServer('localhost', 'root')
@@ -248,7 +269,10 @@ class TestDb(unittest.TestCase):
         self.callbacks.append((message_code, args, kwargs))
 
     def tearDown(self):
-        pass
+        try:
+            os.remove(_TEMP_GB)
+        except OSError:
+            pass
 
 def _table_exists(cursor, table_name):
     cursor.execute('SHOW TABLES LIKE %s;', (table_name,))

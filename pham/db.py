@@ -1,3 +1,12 @@
+"""db.py - create and update phage databases.
+
+Databases are designed to be compatible with Phamerator. Therefore, each
+Phamerator database is a separate mysql database running on a mysql server. For
+this reason, each database operation requires the same two arguments:
+   server - a DatabaseServer object. Used to get connections to the database.
+   id - the name of the mysql database.
+"""
+
 from contextlib import closing
 import os
 import random
@@ -17,6 +26,11 @@ def _default_callback(*args, **kwargs):
     pass
 
 class DatabaseServer(object):
+    """Represents a mysql server.
+
+    Calling get_connection() returns a connection to the server.
+    Connections are drawn from a connection pool.
+    """
     def __init__(self, host, user, password='', pool_size=2, **kwargs):
         kwargs['host'] = host
         kwargs['user'] = user
@@ -38,17 +52,22 @@ class DatabaseServer(object):
     def get_connection(self, **kwargs):
         """Returns a mysql connection object from the connection pool.
 
-        Raises: InvalidCredentials, NetworkError
+        By default, the connection is not associated with a database.
+        Use database='databaseName' to connect to a specific database.
+        This is the same as `USE databaseName` in SQL.
         """
         config = self._dbconfig.copy()
         config.update(kwargs)
         return mysql.connector.connect(pool_size=self._pool_size, **config)
 
 def check_create(server, id, genbank_files=None):
-    """Check this create call for errors.
+    """Check if a call to create() will result in errors.
+
+    This calls create(), but does not commit changes to the database. Use it
+    to catch errors early before running long tasks.
 
     Returns (success, errors)
-    Where success is a boolean and errors is a list of strings.
+    Where success is a boolean and errors is a list of error messages.
     """
     observer = _CallbackObserver()
 
@@ -72,6 +91,14 @@ def check_create(server, id, genbank_files=None):
     return success, observer.error_messages()
 
 def check_rebuild(server, id, organism_ids=None, genbank_files=None):
+    """Check if a call to rebuild() will result in errors.
+
+    Calls rebuild() without commiting changes to the database. Use it to catch
+    errors early before running long tasks.
+
+    Returns (success, errors)
+    Where success is a boolean and errors is a list of error messages.
+    """
     observer = _CallbackObserver()
 
     try:
@@ -91,7 +118,14 @@ def check_rebuild(server, id, organism_ids=None, genbank_files=None):
 
 def create(server, id, genbank_files=None, cdd_search=True, commit=True,
            callback=_default_callback):
-    """
+    """Create a phamerator database.
+
+    Status and errors are reported to `callback`. The first argument of each
+    callback is an instance of the `CallbackCode` enum.
+
+    genbank_files: a list of paths to genbank files.
+    cdd_search (boolean): search for each gene in NCBI conserved domain database.
+    commit (boolean): Commit changes to the database.
 
     Exceptions: DatabaseAlreadyExistsError
     """
@@ -129,6 +163,8 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     return success
 
 def delete(server, id):
+    """Delete a Phamerator database.
+    """
     with closing(server.get_connection()) as cnx:
         with closing(cnx.cursor()) as cursor:
             cursor.execute('DROP DATABASE IF EXISTS {};'.format(id))
@@ -136,6 +172,16 @@ def delete(server, id):
 
 def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
             cdd_search=True, commit=True, callback=_default_callback):
+    """Modify and existing Phamerator database, rebuilding phams.
+
+    Status and errors are reported to `callback`. The first argument of each
+    callback is an instance of the `CallbackCode` enum.
+
+    organism_ids_to_delete: a list of ids of phages to delete.
+    genbank_files_to_add: a list of paths to genbank files.
+    cdd_search (boolean): search for each gene in NCBI conserved domain database.
+    commit (boolean): Commit changes to the database.
+    """
     if organism_ids_to_delete is None:
         organism_ids_to_delete = []
     if genbank_files_to_add is None:
@@ -294,7 +340,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
     return True
 
 def load(server, id, filepath):
-    """Load an SQL dump into the database.
+    """Load a Phamerator database from an SQL dump.
 
     Also migrates to the new schema if needed.
     """
@@ -315,8 +361,10 @@ def load(server, id, filepath):
 def export(server, id, filepath):
     """Saves a SQL dump of the database to the given file.
 
-    Also creates <filename>.version and <filename>.md5sum files in the same
-    directory.
+    Creates three files:
+        <filename>.sql
+        <filename>.version
+        <filename>.md5sum
     """
     directory = os.path.dirname(filepath)
     base_path = '.'.join(filepath.split('.')[:-1]) # remove extension from filename
@@ -368,6 +416,22 @@ def export(server, id, filepath):
     checksum = m.hexdigest()
     with open(checksum_filename, 'w') as out_file:
         out_file.write('{}  {}\n'.format(checksum, filepath))
+
+def export_to_genbank(server, id, organism_id, filename):
+    """Download a phage from the database to the given file.
+
+    Raises: PhageNotFoundError, DatabaseDoesNotExistError
+    """
+    with closing(server.get_connection()) as cnx:
+        if not pham.query.database_exists(cnx, id):
+            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+
+    with closing(server.get_connection(database=id)) as cnx:
+        try:
+            phage = pham.db_object.Phage.from_database(cnx, organism_id)
+        except pham.db_object.PhageNotFoundError as e:
+            raise PhageNotFoundError
+    pham.genbank.write_file(phage, filename)
 
 def _update_schema(cnx):
     """Migrate databases from the old Phamerator schema.
@@ -437,10 +501,10 @@ def _update_schema(cnx):
             _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_1', 'query', 'gene', 'GeneID')
             _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_2', 'subject', 'gene', 'GeneID')
 
-        # truncate unnecessary tables
-        # some tables are truncated instead of deleted to maintain backwards compatibility
-        cursor.execute('TRUNCATE TABLE scores_summary')
-        cursor.execute('TRUNCATE TABLE node')
+        # clear unnecessary tables
+        # to maintain backwards compatibility, the empty tables are kept.
+        cursor.execute('DELETE FROM scores_summary')
+        cursor.execute('DELETE FROM node')
 
         # delete unnecessary tables
         cursor.execute('DROP TABLE IF EXISTS pham_old')
@@ -565,6 +629,8 @@ class _CallbackObserver(object):
         return messages
 
 def message_for_callback(code, *args, **kwargs):
+    """Return a human readable string for callback messages from 'create' and 'rebuild'.
+    """
     message = None
     if code == CallbackCode.genbank_format_error:
         phage_error = args[0]
@@ -601,4 +667,7 @@ class DatabaseAlreadyExistsError(DatabaseError):
     pass
 
 class DatabaseDoesNotExistError(DatabaseError):
+    pass
+
+class PhageNotFoundError(DatabaseError):
     pass

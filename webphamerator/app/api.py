@@ -16,6 +16,7 @@ def new_database():
             name: "",
             description: "",
             file_ids: [],
+            phages_from_other_databases: [], // {database: mydb, id: 42}
             template: "",
             cdd_search: true,
             test: true // optional
@@ -31,16 +32,20 @@ def new_database():
     errors = []
 
     json_data = request.get_json()
-    name = json_data.get('name')
-    if name is None:
+    if not 'name' in json_data:
         return 'Missing property \'name\'.', 412
     if not 'description' in json_data:
         return 'Missing property \'description\'', 412
-    description = json_data.get('description')
     if not 'file_ids' in json_data:
         return 'Missing property \'file_ids\'.', 412
     if not 'cdd_search' in json_data:
         return 'Missing property: \'cdd_search\'.', 412
+    if not 'phages_from_other_databases' in json_data:
+        return 'Missing property: \'phages_from_other_databases\'.', 412
+
+    name = json_data.get('name')
+    description = json_data.get('description')
+    phages_from_other_databases = json_data.get('phages_from_other_databases', [])
     file_ids = json_data.get('file_ids', [])
     test = json_data.get('test', False)
 
@@ -48,14 +53,50 @@ def new_database():
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
-    file_records = []
     if len(file_ids):
-        file_records = db.session.query(models.GenbankFile).filter(models.GenbankFile.id.in_(file_ids)).all()
-        if len(file_records) != len(file_ids):
-            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - len(file_records)))
+        file_record_count = (db.session.query(models.GenbankFile)
+                             .filter(models.GenbankFile.id.in_(file_ids))
+                             .count())
+        if len(file_ids) != file_record_count:
+            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - file_record_count))
+
+    # copy phages from other databases
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    if len(phages_from_other_databases):
+        for phage in phages_from_other_databases:
+            phage_id = phage['id']
+            database_id = phage['database']
+
+            db_record = (db.session.query(models.Database)
+                         .filter(models.Database.id == database_id)
+                         .first())
+            if db_record is None:
+                errors.append('Error 1 importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
+                continue
+
+            # export genbank file
+            with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+                                             delete=False) as local_handle:
+                local_filename = local_handle.name
+                try:
+                    pham.db.export_to_genbank(server, db_record.mysql_name(), phage_id, local_handle)
+                    file_record = models.GenbankFile(filename=local_filename)
+                    db.session.add(file_record)
+                    db.session.commit()
+                    file_ids.append(file_record.id)
+                except pham.db.DatabaseDoesNotExistError as e:
+                    errors.append('Error 2 importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
+                except pham.db.PhageNotFoundError as e:
+                    errors.append('Error importing phage `{}` from database `{}`: Phage does not exist.'.format(phage_id, database_id))
 
     if len(errors):
         return flask.jsonify(errors=errors), 400
+
+    file_records = []
+    if len(file_ids):
+        file_records = (db.session.query(models.GenbankFile)
+                        .filter(models.GenbankFile.id.in_(file_ids))
+                        .all())
 
     genbank_filepaths = [x.filename for x in file_records]
 
@@ -70,7 +111,6 @@ def new_database():
     db.session.commit()
 
     # check database creation transaction for errors
-    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
     database_id = database_record.mysql_name()
     success, errors = pham.db.check_create(server, database_id,
                                            genbank_files=genbank_filepaths)
@@ -110,6 +150,7 @@ def modify_database(database_id):
     expected POST data:
         {
             file_ids: [],
+            phages_from_other_databases: [], // {database: mydb, id: 42}
             phages_to_delete: [],
             description: "" // optional,
             test: true // optional
@@ -129,8 +170,12 @@ def modify_database(database_id):
         return 'Missing property \'file_ids\'.', 412
     if not 'phages_to_delete' in json_data:
         return 'Missing property \'phages_to_delete\'.', 412
+    if not 'phages_from_other_databases' in json_data:
+        return 'Missing property: \'phages_from_other_databases\'.', 412
+
     file_ids = json_data.get('file_ids', [])
     phage_ids = json_data.get('phages_to_delete', [])
+    phages_from_other_databases = json_data.get('phages_from_other_databases', [])
     description = json_data.get('description')
     test = json_data.get('test', False)
 
@@ -142,16 +187,50 @@ def modify_database(database_id):
     elif database_record.locked is True:
         errors.append('This database already has a queued job.')
 
+    if len(file_ids):
+        file_record_count = (db.session.query(models.GenbankFile)
+                             .filter(models.GenbankFile.id.in_(file_ids))
+                             .count())
+        if file_record_count != len(file_ids):
+            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - file_record_count))
+
+    # copy phages from other databases
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    if len(phages_from_other_databases):
+        for phage in phages_from_other_databases:
+            phage_id = phage['id']
+            database_id = phage['database']
+
+            db_record = (db.session.query(models.Database)
+                         .filter(models.Database.id == database_id)
+                         .first())
+            if db_record is None:
+                errors.append('Error importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
+                continue
+
+            # export genbank file
+            with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+                                             delete=False) as local_handle:
+                local_filename = local_handle.name
+                try:
+                    pham.db.export_to_genbank(server, db_record.mysql_name(), phage_id, local_handle)
+                    file_record = models.GenbankFile(filename=local_filename)
+                    db.session.add(file_record)
+                    db.session.commit()
+                    file_ids.append(file_record.id)
+                except pham.db.DatabaseDoesNotExistError as e:
+                    errors.append('Error importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
+                except pham.db.PhageNotFoundError as e:
+                    errors.append('Error importing phage `{}` from database `{}`: Phage does not exist.'.format(phage_id, database_id))
+
+    if len(errors):
+        return flask.jsonify(errors=errors), 400
+
     file_records = []
     if len(file_ids):
         file_records = (db.session.query(models.GenbankFile)
                         .filter(models.GenbankFile.id.in_(file_ids))
                         .all())
-        if len(file_records) != len(file_ids):
-            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - len(file_records)))
-
-    if len(errors):
-        return flask.jsonify(errors=errors), 400
 
     genbank_filepaths = [x.filename for x in file_records]
 

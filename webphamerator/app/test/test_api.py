@@ -84,6 +84,7 @@ class TestAddGenbankFile(unittest.TestCase):
             'template': None,
             'cdd_search': False,
             'phages_to_delete': [],
+            'phages_from_other_databases': [],
             'test': True
         }
         response = self.app.post('/api/databases',
@@ -107,6 +108,7 @@ class TestAddGenbankFile(unittest.TestCase):
             'template': None,
             'cdd_search': False,
             'phages_to_delete': [],
+            'phages_from_other_databases': [],
             'test': True
         }
         response = self.app.post('/api/databases',
@@ -125,7 +127,9 @@ class TestAddGenbankFile(unittest.TestCase):
 
         # create a database with phages
         phage_path = os.path.join(_DATA_DIR, 'Filichino-small.gb')
-        file_record = GenbankFile(filename=phage_path)
+        temp_phage_path = os.path.join(_DATA_DIR, 'temp.gb')
+        shutil.copyfile(phage_path, temp_phage_path)
+        file_record = GenbankFile(filename=temp_phage_path)
         db.session.add(file_record)
         db.session.commit()
         self.assertIsNone(file_record.job_id)
@@ -138,12 +142,12 @@ class TestAddGenbankFile(unittest.TestCase):
             'template': None,
             'cdd_search': False,
             'phages_to_delete': [],
-            'test': True
+            'phages_from_other_databases': [],
+            'test': False
         }
         response = self.app.post('/api/databases',
                                  data=json.dumps(post_data),
                                  content_type='application/json')
-
         # check response code
         self.assertEqual(response.status_code, 201, response.get_data())
         # check that database was created
@@ -153,6 +157,37 @@ class TestAddGenbankFile(unittest.TestCase):
         file_record = db.session.query(GenbankFile).filter(GenbankFile.id == file_record_id).first()
         self.assertIsNotNone(file_record.job_id)
 
+        # create a database with a phage from another database
+        db_record = (db.session.query(Database)
+                     .filter(Database.display_name == post_data['name'])
+                     .first())
+
+        phage_info = {
+            'database': db_record.id,
+            'id': 'Filichino'
+        }
+        post_data = {
+            'name': self.database_names[2],
+            'description': 'A database.',
+            'file_ids': [],
+            'template': None,
+            'cdd_search': False,
+            'phages_to_delete': [],
+            'phages_from_other_databases': [phage_info],
+            'test': False
+        }
+        response = self.app.post('/api/databases',
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+
+        # check response code
+        self.assertEqual(response.status_code, 201, response.get_data())
+        # check that database was created
+        db_record = db.session.query(Database).filter(Database.display_name == post_data['name']).first()
+        self.assertIsNotNone(db_record)
+        # check that it contains a phage
+        self.assertEqual(1, db_record.number_of_organisms)
+
         # create a database which already exists
         post_data = {
             'name': self.database_names[0],
@@ -161,6 +196,7 @@ class TestAddGenbankFile(unittest.TestCase):
             'template': None,
             'cdd_search': False,
             'phages_to_delete': [],
+            'phages_from_other_databases': [],
             'test': True
         }
         response = self.app.post('/api/databases',
@@ -183,6 +219,7 @@ class TestAddGenbankFile(unittest.TestCase):
         post_data = {
             'file_ids': [file_record.id],
             'phages_to_delete': [],
+            'phages_from_other_databases': [],
             'test': True
         }
         response = self.app.post('/api/database/24601',
@@ -198,6 +235,7 @@ class TestAddGenbankFile(unittest.TestCase):
             'description': 'A database.',
             'file_ids': [],
             'template': None,
+            'phages_from_other_databases': [],
             'cdd_search': False,
         }
         response = self.app.post('/api/databases',
@@ -212,6 +250,7 @@ class TestAddGenbankFile(unittest.TestCase):
         # add a phage
         post_data = {
             'file_ids': [file_record.id],
+            'phages_from_other_databases': [],
             'phages_to_delete': []
         }
         response = self.app.post('/api/database/{}'.format(database_record.id),
@@ -227,9 +266,33 @@ class TestAddGenbankFile(unittest.TestCase):
         self.assertIsNotNone(database_record)
         self.assertEqual(database_record.number_of_organisms, 1)
 
+        # import existing phage
+        phage_data = {
+            'database': database_record.id,
+            'id': 'Filichino'
+        }
+        post_data = {
+            'name': self.database_names[2],
+            'description': 'A database.',
+            'file_ids': [],
+            'template': None,
+            'phages_from_other_databases': [phage_data],
+            'cdd_search': False,
+        }
+        response = self.app.post('/api/databases',
+                                 data=json.dumps(post_data),
+                                 content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        database_record = (db.session.query(Database)
+                           .filter(Database.display_name == self.database_names[2])
+                           .first())
+        self.assertIsNotNone(database_record)
+        self.assertEqual(database_record.number_of_organisms, 1)
+
         # remove a phage
         post_data = {
             'file_ids': [],
+            'phages_from_other_databases': [],
             'phages_to_delete': ['Filichino']
         }
         response = self.app.post('/api/database/{}'.format(database_record.id),
@@ -240,7 +303,7 @@ class TestAddGenbankFile(unittest.TestCase):
         self.assertTrue(len(response_data['errors']) == 0)
         # check number of phages in database record
         database_record = (db.session.query(Database)
-                           .filter(Database.display_name == self.database_names[0])
+                           .filter(Database.display_name == self.database_names[2])
                            .first())
         self.assertIsNotNone(database_record)
         self.assertEqual(database_record.number_of_organisms, 0)
