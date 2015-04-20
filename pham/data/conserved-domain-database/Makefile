@@ -8,6 +8,7 @@ Cdd_LE.tar.gz:
 	wget ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz
 
 all: Cdd/Cdd.rps
+	rm -f Cdd_LE.tar.gz
 
 clean:
 	rm -rf Cdd
