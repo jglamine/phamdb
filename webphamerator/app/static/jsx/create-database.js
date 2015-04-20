@@ -82,6 +82,7 @@ var DatabaseCddCheckbox = React.createClass({
           </input>
           Search Conserved Domain Database
         </label>
+        <p className="help-block">Search for each gene in <a href="http://www.ncbi.nlm.nih.gov/Structure/cdd/cdd.shtml">NCBI’s conserved domain database</a>. This will significantly increase runtime.</p>
       </div>
     );
   }
@@ -96,6 +97,7 @@ var PhageDeleteList = React.createClass({
       phages.push(<SelectablePhage
                    name={phage.name}
                    phage_id={phage.id}
+                   genes={phage.genes}
                    selected={phage.selected}
                    index={index}
                    setSelected={ctx.props.setSelected} />);
@@ -119,6 +121,17 @@ var SelectablePhage = React.createClass({
     this.props.setSelected(this.props.index, !this.props.selected);
   },
   render: function() {
+    var database = '';
+    if (this.props.database !== undefined) {
+      database = ', database: ' + this.props.database;
+    }
+
+    if (this.props.genes === 1) {
+      var genesText = 'gene';
+    } else {
+      var genesText = 'genes';
+    }
+
     return (
       <li className="list-group-item checkbox container-fluid">
         <div className="row">
@@ -128,11 +141,277 @@ var SelectablePhage = React.createClass({
                   checked={this.props.selected}
                   onChange={this.handleCheckbox}>
                 </input>
-                <strong>{this.props.name}</strong>  <small>(id: {this.props.phage_id})</small>
+                <strong>{this.props.name}</strong>  <small>(id: {this.props.phage_id}{database}, {this.props.genes} {genesText})</small>
               </label>
             </div>
         </div>
       </li>
+    );
+  }
+});
+
+var ImportPhageForm = React.createClass({
+  render: function() {
+    var phages = [];
+    var index = 0;
+    var ctx = this;
+    this.props.phages.forEach(function(phage) {
+      phages.push(<SelectablePhage
+                   name={phage.name}
+                   phage_id={phage.id}
+                   genes={phage.genes}
+                   database={phage.databaseName}
+                   selected={phage.selected}
+                   index={index}
+                   setSelected={ctx.props.onSelectPhage} />);
+      index += 1;
+    });
+
+    return (
+      <div>
+        <h2>Import Phages from Database</h2>
+        <p>
+          Select a phage to import it from a database.
+        </p>
+
+        <FilteredDatabaseList
+          selectedPhages={this.props.phages}
+          onAddPhage={this.props.onAddPhage}
+          onRemovePhage={this.props.onRemovePhage} />
+
+        <div className="phage-list list-group">{phages}</div>
+      </div>
+    );
+  }
+});
+
+var FilteredDatabaseList = React.createClass({
+  getInitialState: function() {
+    return {
+      databases: [],
+      phages: [],
+      loaded: false,
+      phagesLoading: false
+    };
+  },
+  componentDidMount: function() {
+    var ctx = this;
+    $.getJSON('/api/database')
+    .done(function(data) {
+      var databases = _.forEach(data.databases, function(item, index) {
+        item.selected = index === 0;
+        return item;
+      });
+      ctx.setState({
+        databases: databases,
+        loaded: true,
+        phages: [],
+        phagesLoading: true
+      }, ctx.loadPhages);
+    })
+    .fail(function(response) {
+      ctx.setState({
+        loaded: null
+      });
+    });
+  },
+  loadPhages: function() {
+    var ctx = this;
+    database = _.find(this.state.databases, function(item) {
+      return item.selected === true;
+    });
+
+    $.getJSON('/api/database/' + database.id + '/phages')
+    .done(function(data) {
+      var phages = _.forEach(data.phages, function(item) {
+        var selectedIndex = _.findIndex(ctx.props.selectedPhages, function(selectedItem) {
+          return selectedItem.database === database.id && item.id === selectedItem.id;
+        });
+        item.selected = selectedIndex !== -1;
+        item.database = database.id;
+        item.databaseName = database.name;
+        return item;
+      });
+      ctx.setState({
+        phages: phages,
+        phagesLoading: false
+      });
+    })
+    .fail(function() {
+      ctx.setState({
+        phages: [],
+        phagesLoading: false
+      });
+    })
+    
+  },
+  selectDatabase: function(index) {
+    var databases = this.state.databases.slice();
+    _.each(databases, function(database, i) {
+      database.selected = i === index;
+    });
+    this.setState({
+      databases: databases,
+      phages: [],
+      phagesLoading: true
+    }, this.loadPhages);
+    // TODO: load list of phages
+  },
+  phageSelected: function(index, selected) {
+    if (selected === true) {
+      this.props.onAddPhage(this.state.phages[index]);
+    } else if (selected === false) {
+      this.props.onRemovePhage(this.state.phages[index]);
+    }
+    var phages = this.state.phages.slice();
+    phages[index].selected = selected;
+    this.setState({
+      phages: phages
+    });
+  },
+  render: function() {
+    return (
+      <div className="container-fluid">
+        <div className="row">
+          <div className="col-xs-6">
+            <h4>Databases</h4>
+            <DatabaseList
+              databases={this.state.databases}
+              loaded={this.state.loaded}
+              onSelectDatabase={this.selectDatabase} />
+          </div>
+          <div className="col-xs-6">
+            <h4>Phages</h4>
+            <DatabasePhageList
+              phages={this.state.phages}
+              loading={this.state.phagesLoading}
+              setSelected={this.phageSelected} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+});
+
+var DatabasePhageList = React.createClass({
+  render: function() {
+    var phages = [];
+    var index = 0;
+    var ctx = this;
+    this.props.phages.forEach(function(phage) {
+      phages.push(<DatabasePhageListItem
+                   name={phage.name}
+                   phage_id={phage.id}
+                   selected={phage.selected}
+                   genes={phage.genes}
+                   index={index}
+                   setSelected={ctx.props.setSelected} />);
+      index += 1;
+    });
+
+    if (this.props.loading) {
+      return (
+        <span className="glyphicon glyphicon-refresh spinning"></span>
+      );
+    }
+
+    return (
+      <div className="phage-list list-group">{phages}</div>
+    );
+  }
+});
+
+var DatabasePhageListItem = React.createClass({
+  handleClick: function(event) {
+    event.preventDefault();
+    this.props.setSelected(this.props.index, !this.props.selected);
+  },
+  render: function() {
+    var cs = React.addons.classSet;
+    var classes = cs({
+      'list-group-item': true,
+      'database-list-item': true,
+      'active': this.props.selected,
+      'container-fluid': true
+    });
+
+    if (this.props.genes === 1) {
+      var genesText = 'gene';
+    } else {
+      var genesText = 'genes';
+    }
+
+    return (
+      <a className={classes}
+        onClick={this.handleClick}>
+        <strong>{this.props.name}</strong>  <small>(id: {this.props.phage_id}, {this.props.genes} {genesText})</small>
+      </a>
+    );
+  }
+});
+
+var DatabaseList = React.createClass({
+  render: function() {
+    var databases = [];
+    var index = 0;
+    var ctx = this;
+    this.props.databases.forEach(function(database) {
+      databases.push(<SelectableDatabase
+                   name={database.name}
+                   phages={database.phages}
+                   selected={database.selected}
+                   index={index}
+                   setSelected={ctx.props.onSelectDatabase} />);
+      index += 1;
+    });
+
+    if (this.props.loaded === false) {
+      return (
+        <span className="glyphicon glyphicon-refresh spinning"></span>
+      );
+    }
+    if (this.props.loaded === null) {
+      return (
+        <div>
+          <h5>Error loading database list.</h5>
+          <p>
+            Refresh the page to try again.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="list-group">{databases}</div>
+    );
+  }
+});
+
+var SelectableDatabase = React.createClass({
+  clicked: function(event) {
+    event.preventDefault();
+    this.props.setSelected(this.props.index);
+  },
+  render: function() {
+    var cs = React.addons.classSet;
+    var classes = cs({
+      'list-group-item': true,
+      'database-list-item': true,
+      'active': this.props.selected
+    });
+
+    var phagesText = this.props.phages + " ";
+    if (this.props.phages === 1) {
+      phagesText += "phage";
+    } else {
+      phagesText += "phages";
+    }
+
+    return (
+      <a className={classes}
+        onClick={this.clicked}>
+        <strong>{this.props.name}</strong> <small>{phagesText}</small>
+      </a>
     );
   }
 });
@@ -321,6 +600,12 @@ var CreateDatabaseFormSummary = React.createClass({
       }
     });
 
+    _.each(this.props.importPhages, function(item) {
+      if (item.selected) {
+        uploadCount += 1;
+      }
+    });
+
     var deleteCount = 0;
     _.each(this.props.phages, function(phage) {
       if (phage.selected === false) {
@@ -419,6 +704,7 @@ var CreateDatabaseForm = React.createClass({
       description: '',
       cddSearch: false,
       phages: [],
+      importPhages: [],
       files: [],
       uploadSlots: 1,
       handleUploadsComplete: null,
@@ -602,6 +888,31 @@ var CreateDatabaseForm = React.createClass({
       cddSearch: checked
     });
   },
+  addImportPhage: function(phage) {
+    var importPhages = this.state.importPhages.slice();
+    phage = _.clone(phage);
+    phage.selected = true;
+    importPhages.push(phage);
+    this.setState({
+      importPhages: importPhages
+    });
+  },
+  removeImportPhage: function(phage) {
+    var importPhages = this.state.importPhages.slice();
+    _.remove(importPhages, function(p) {
+      return p.id === phage.id && p.database === phage.database;
+    });
+    this.setState({
+      importPhages: importPhages
+    });
+  },
+  setImportPhageSelected: function(index, selected) {
+    var importPhages = this.state.importPhages.slice();
+    importPhages[index].selected = selected;
+    this.setState({
+      importPhages: importPhages
+    });
+  },
   handleSubmit: function() {
     var ctx = this;
 
@@ -628,13 +939,23 @@ var CreateDatabaseForm = React.createClass({
       return phage.id;
     });
 
+    var phages_from_other_databases = _.filter(this.state.importPhages, function(phage) {
+      return phage.selected === true;
+    })
+    .map(function(phage) {
+      return {
+        id: phage.id,
+        database: phage.database
+      };
+    });
+
     var data = {
         name: this.state.name,
         description: this.state.description,
         cdd_search: this.state.cddSearch,
         file_ids: file_ids,
-        template: null,
-        phages_to_delete: phage_ids_to_delete
+        phages_to_delete: phage_ids_to_delete,
+        phages_from_other_databases: phages_from_other_databases
       };
 
     var apiUrl = '/api/databases';
@@ -707,13 +1028,19 @@ var CreateDatabaseForm = React.createClass({
           onUserInput={this.handleCddInput}
           disabled={this.state.databaseId !== null} />
         {phages}
+        <ImportPhageForm
+          phages={this.state.importPhages}
+          onAddPhage={this.addImportPhage}
+          onRemovePhage={this.removeImportPhage}
+          onSelectPhage={this.setImportPhageSelected} />
         <PhageUploadForm
           files={this.state.files}
           handleFiles={this.handleFiles}
           setFileState={this.setFileState} />
         <CreateDatabaseFormSummary
           files={this.state.files}
-          phages={this.state.phages} />
+          phages={this.state.phages}
+          importPhages={this.state.importPhages} />
         <CreateDatabaseButton
           handleClick={this.handleSubmit}
           text={submitButtonText}

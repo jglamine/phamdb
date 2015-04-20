@@ -35,6 +35,10 @@ hr.error {
     margin: 0 auto;
 }
 
+.database-list-item {
+    cursor: pointer;
+}
+
 .glyphicon.spinning {
     animation: spin 2s infinite linear;
     -webkit-animation: spin2 2s infinite linear;

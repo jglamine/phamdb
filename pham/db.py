@@ -418,7 +418,9 @@ def export(server, id, filepath):
         out_file.write('{}  {}\n'.format(checksum, filepath))
 
 def export_to_genbank(server, id, organism_id, filename):
-    """Download a phage from the database to the given file.
+    """Download a phage from the database to the given file or file handle.
+
+    Returns an instance of `db_object.Phage`.
 
     Raises: PhageNotFoundError, DatabaseDoesNotExistError
     """
@@ -431,7 +433,41 @@ def export_to_genbank(server, id, organism_id, filename):
             phage = pham.db_object.Phage.from_database(cnx, organism_id)
         except pham.db_object.PhageNotFoundError as e:
             raise PhageNotFoundError
+
     pham.genbank.write_file(phage, filename)
+    return phage
+
+def list_organisms(server, id):
+    """Returns a list of organisms in the database.
+
+    Each organisms is an instance of OrganismSummaryModel.
+
+    Raises: DatabaseDoesNotExistError
+    """
+    with closing(server.get_connection()) as cnx:
+        if not pham.query.database_exists(cnx, id):
+            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+
+    organisms = []
+    with closing(server.get_connection(database=id)) as cnx:
+        with closing(cnx.cursor()) as cursor:
+            cursor.execute('''
+                SELECT p.PhageID, p.Name, COUNT(*)
+                FROM phage as p
+                JOIN gene as g
+                ON g.PhageID = p.PhageID
+                GROUP BY g.PhageID
+                           ''')
+            for phage_id, name, gene_count in cursor:
+                organisms.append(OrganismSummaryModel(name, phage_id, gene_count))
+
+    return organisms
+
+class OrganismSummaryModel(object):
+    def __init__(self, name, id, gene_count):
+        self.name = name
+        self.id = id
+        self.genes = gene_count
 
 def _update_schema(cnx):
     """Migrate databases from the old Phamerator schema.

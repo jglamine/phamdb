@@ -84,12 +84,12 @@ def database(db_id):
 
     server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
-    with closing(server.get_connection(database=database.mysql_name())) as cnx:
-        for row in pham.query.list_organisms(cnx):
-            phage_view_models.append(PhageViewModel(
-                                     id=row[0],
-                                     name=row[1]
-                                     ))
+    for phage in pham.db.list_organisms(server, database.mysql_name()):
+        phage_view_models.append(PhageViewModel(
+                                 id=phage.id,
+                                 name=phage.name,
+                                 genes=phage.genes
+                                 ))
 
     return render_template('database.html',
                            title='Database - {}'.format(database.display_name),
@@ -132,12 +132,12 @@ def edit_database(db_id):
 
     server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
-    with closing(server.get_connection(database=database.mysql_name())) as cnx:
-        for row in pham.query.list_organisms(cnx):
-            phage_view_models.append(PhageViewModel(
-                                     id=row[0],
-                                     name=row[1]
-                                     ))
+    for phage in pham.db.list_organisms(server, database.mysql_name()):
+        phage_view_models.append(PhageViewModel(
+                                 id=phage.id,
+                                 name=phage.name,
+                                 genes=phage.genes
+                                 ))
 
     return render_template('edit-database.html',
                            title='Edit Database - {}'.format(database.display_name),

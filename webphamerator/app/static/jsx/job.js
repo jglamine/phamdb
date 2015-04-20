@@ -71,7 +71,7 @@ var JobStatus = React.createClass({
   },
   componentWillMount: function() {
     if (this.state.statusCode === 'queued' || this.state.statusCode === 'running') {
-      window.setTimeout(this.refresh, 5000);
+      window.setTimeout(this.refresh, 1000);
     }
   },
   refresh: function() {

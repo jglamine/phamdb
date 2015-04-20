@@ -51,7 +51,7 @@
       <ul class="list-group">
         {% for phage in phages %}
         <li class="list-group-item">
-          {{ phage.name }} - id: {{ phage.id }}
+          <strong>{{ phage.name }}</strong> <small>(id: {{ phage.id }}, {{ phage.genes }} genes)</small>
         </li>
         {% endfor %}
       </ul>

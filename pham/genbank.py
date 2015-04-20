@@ -31,7 +31,8 @@ def write_file(phage, filepath):
                         'organism': phage.name,
                         'db_xref': phage.id,
                         'lab_host': phage.host_strain,
-                        'isolation_source': phage.isolated
+                        'isolation_source': phage.isolated,
+                        'pham_reader': 'SKIP_GENE_SEQUENCE_VALIDATION'
                     })
     features.append(source_feature)
 
@@ -58,8 +59,8 @@ def write_file(phage, filepath):
                     type='CDS',
                     location=FeatureLocation(ExactPosition(gene.start),
                                              ExactPosition(gene.stop)),
-                                            strand=strand,
-                                            qualifiers=qualifiers)
+                    strand=strand,
+                    qualifiers=qualifiers)
         features.append(feature)
 
     record = Bio.SeqRecord.SeqRecord(sequence,
@@ -81,6 +82,7 @@ class _PhageReader(object):
         self.isolation = None
         self.genes = []
         self.errors = []
+        self._validate_gene_sequence = True
 
         self._record = None
         self._filename = filename
@@ -150,6 +152,21 @@ class _PhageReader(object):
 
                 self.host_strain = self._read_value(feature, ['lab_host', 'specific_host'])
                 self.isolation = self._read_value(feature, ['isolation_source'])
+
+                # This tag is set when exporting phages from a database.
+                # It tells the parser to ignore errors related to
+                # gene sequences, as that data does not survive the
+                # genbank -> phamerator database -> genbank conversion correctly.
+                #
+                # Specifically, CDS locations such as
+                #    join(11244..11654,11654..12097)
+                # are converted into
+                #    11244..12097
+                # resulting in incorrect sequence length calculations.
+                webphamerator_tag = self._read_value(feature, ['pham_reader'])
+                if webphamerator_tag is not None:
+                    self._validate_gene_sequence = False
+
             if feature.type == 'CDS':
                 self._read_gene_record(feature)
 
@@ -173,7 +190,8 @@ class _PhageReader(object):
                                  self._record.seq,
                                  self.translation_table,
                                  self._filename,
-                                 self._line_numbers.line_for('CDS', len(self.genes)))
+                                 self._line_numbers.line_for('CDS', len(self.genes)),
+                                 validate_gene_sequence=self._validate_gene_sequence)
         self.genes.append(gene_reader)
         self.errors += gene_reader.errors
         gene_reader.errors = []
@@ -254,7 +272,8 @@ class GenbankLineNumbers(object):
 
 
 class GeneReader(object):
-    def __init__(self, feature, sequence, translation_table, filename, line_number=None):
+    def __init__(self, feature, sequence, translation_table, filename,
+                 line_number=None, validate_gene_sequence=True):
         if feature.type != 'CDS':
             raise ValueError('Invalid feature type: not a gene feature')
 
@@ -278,6 +297,7 @@ class GeneReader(object):
         self._translation_table = translation_table
         self.line = line_number
         self._filename = filename
+        self._validate_gene_sequence = validate_gene_sequence
 
         self._read_gene_id()
         self._read_gene_name()
@@ -376,8 +396,11 @@ class GeneReader(object):
         self.start = self._feature.location.start.position
         self.stop = self._feature.location.end.position
 
-        if len(self._gene_sequence) % 3 != 0 or len(self._gene_sequence) == 0:
-            self._add_error(ErrorCode.invalid_gene_sequence_length)
+        if self._validate_gene_sequence:
+            # The sequence location may be invalid, but the translation,
+            # first, and last codons should still be correct.
+            if len(self._gene_sequence) % 3 != 0 or len(self._gene_sequence) == 0:
+                self._add_error(ErrorCode.invalid_gene_sequence_length)
 
         if self.stop > len(sequence):
             self._add_error(ErrorCode.gene_stop_out_of_bounds)
@@ -399,6 +422,12 @@ class GeneReader(object):
             translation = self._feature.qualifiers['translation'][0]
             if translation[-1] in '*z':
                 translation = translation[:-1]
+
+        if not self._validate_gene_sequence:
+            # The gene sequence location might be wrong. Use the translation
+            # from the file instead.
+            self.translation = translation
+            return
 
         try:
             calculated_translation = Bio.Seq.translate(self._gene_sequence,
@@ -469,7 +498,7 @@ class PhageError(object):
         elif self.code == ErrorCode.gene_start_out_of_bounds:
             message = 'Gene start location \'{}\' is greater than the phage sequence length.'.format(self.args[0])
         elif self.code == ErrorCode.invalid_gene_sequence_length:
-            message = 'Gene sequence must be a nonzero multiple of 3, but is \'{}\'.'.format(self.args[0])
+            message = 'Gene sequence length must be a nonzero multiple of 3, but is \'{}\'.'.format(self.args[0])
         return message
 
     def __str__(self):

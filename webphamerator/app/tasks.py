@@ -157,7 +157,7 @@ class CreateDatabase(_BaseDatabaseTask):
 
     def failure_hook(self, database_record, job_record, exception):
         if not isinstance(exception, pham.db.DatabaseAlreadyExistsError):
-            pham.db.delete(self.server(), database_record.mysql_name())
+            pham.db.delete(self.server, database_record.mysql_name())
         else:
             job_record.status_message = 'Database already exists.'
         db.session.delete(database_record)
