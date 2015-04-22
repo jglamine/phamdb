@@ -1,18 +1,28 @@
 # requires a persistent volume mounted at /dockerdata
 # To mount a local directory, run with:
-#     docker run -i -p=80:80 -v /local/directory:/dockerdata
+#     docker run -i -p=80:80 -v /local/directory:/dockerdata jglamine/phage:latest
 
 from debian:wheezy
 
 maintainer jglamine@gmail.com
 
-run apt-get update && apt-get install -y build-essential git python python-dev python-setuptools nginx supervisor software-properties-common python-software-properties mysql-server rabbitmq-server hhsuite kalign libmysqlclient-dev python-biopython && apt-get clean && rm -rf /tmp/* /var/tmp/*
+# download conserved domain database
+run apt-get update && apt-get install -y wget && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run mkdir -p /home/docker/conserved-domain-database
+# run wget ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz && tar -zxvf Cdd_LE.tar.gz -C /home/docker/conserved-domain-database/Cdd && rm -f Cdd_LE.tar.gz
+
+run apt-get install -y build-essential git python python-dev python-setuptools python-biopython hhsuite kalign && apt-get clean && rm -rf /tmp/* /var/tmp/*
+
+run apt-get install -y nginx supervisor mysql-server rabbitmq-server libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 run easy_install pip
 run pip install uwsgi
 
 # install code
-run git clone https://github.com/jglamine/phage.git /home/docker/code
+run git clone https://github.com/jglamine/phage.git /home/docker/code && rm -rf /home/docker/code/.git
+
+# symlink conserved domain database
+# run ln -s /home/docker/conserved-domain-database/Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 # override default location for database dumps to the external volume.
 run echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webphamerator/config.py
@@ -31,9 +41,6 @@ run service mysql start && mysql --user="root" --execute="CREATE DATABASE webpha
 
 # Edit mysql config file. Change mysql directory to the external volume.
 run sed -i "s|var/lib/mysql|dockerdata/mysql|g" etc/mysql/my.cnf
-
-# download conserved domain database
-#run make -C /home/docker/code/pham/data/conserved-domain-database all
 
 expose 80
 cmd ["supervisord", "-n"]
