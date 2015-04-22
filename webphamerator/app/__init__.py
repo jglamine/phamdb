@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from celery import Celery
@@ -17,6 +19,11 @@ def make_celery(app):
 app = Flask(__name__)
 
 app.config.from_object('webphamerator.config')
+
+if not os.path.exists(app.config['GENBANK_FILE_DIR']):
+    os.makedirs(app.config['GENBANK_FILE_DIR'])
+if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
+    os.makedirs(app.config['DATABASE_DUMP_DIR'])
 
 db = SQLAlchemy(app)
 celery = make_celery(app)
