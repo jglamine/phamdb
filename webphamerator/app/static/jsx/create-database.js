@@ -176,6 +176,7 @@ var ImportPhageForm = React.createClass({
 
         <FilteredDatabaseList
           selectedPhages={this.props.phages}
+          databaseId={this.props.databaseId}
           onAddPhage={this.props.onAddPhage}
           onRemovePhage={this.props.onRemovePhage} />
 
@@ -198,10 +199,13 @@ var FilteredDatabaseList = React.createClass({
     var ctx = this;
     $.getJSON('/api/database')
     .done(function(data) {
-      var databases = _.forEach(data.databases, function(item, index) {
+      var databases = _.filter(data.databases, function(item) {
+        return item.id !== ctx.props.databaseId;
+      }).map(function(item, index) {
         item.selected = index === 0;
         return item;
       });
+
       ctx.setState({
         databases: databases,
         loaded: true,
@@ -211,16 +215,24 @@ var FilteredDatabaseList = React.createClass({
     })
     .fail(function(response) {
       ctx.setState({
-        loaded: null
+        loaded: null,
+        phagesLoading: false
       });
     });
   },
   loadPhages: function() {
-    var ctx = this;
+    if (this.state.databases.length === 0) {
+      this.setState({
+        phagesLoading: false
+      });
+      return;
+    }
+
     database = _.find(this.state.databases, function(item) {
       return item.selected === true;
     });
 
+    var ctx = this;
     $.getJSON('/api/database/' + database.id + '/phages')
     .done(function(data) {
       var phages = _.forEach(data.phages, function(item) {
@@ -255,7 +267,6 @@ var FilteredDatabaseList = React.createClass({
       phages: [],
       phagesLoading: true
     }, this.loadPhages);
-    // TODO: load list of phages
   },
   phageSelected: function(index, selected) {
     if (selected === true) {
@@ -373,10 +384,15 @@ var DatabaseList = React.createClass({
     if (this.props.loaded === null) {
       return (
         <div>
-          <h5>Error loading database list.</h5>
-          <p>
-            Refresh the page to try again.
+          <p>Error loading database list. Refresh the page to try again.
           </p>
+        </div>
+      );
+    }
+    if (this.props.databases.length === 0) {
+      return (
+        <div>
+          <p>No databases found.</p>
         </div>
       );
     }
@@ -1030,6 +1046,7 @@ var CreateDatabaseForm = React.createClass({
         {phages}
         <ImportPhageForm
           phages={this.state.importPhages}
+          databaseId={this.state.databaseId}
           onAddPhage={this.addImportPhage}
           onRemovePhage={this.removeImportPhage}
           onSelectPhage={this.setImportPhageSelected} />

@@ -90,12 +90,12 @@ var JobStatus = React.createClass({
         ctx.setState(status);
 
         if (data.statusCode === 'running' || data.statusCode === 'queued' ) {
-          window.setTimeout(ctx.refresh, 5000);
+          window.setTimeout(ctx.refresh, 1000);
         }
 
       })
       .fail(function() {
-        window.setTimeout(ctx.refresh, 5000);
+        window.setTimeout(ctx.refresh, 1000);
       });
   },
   render: function() {

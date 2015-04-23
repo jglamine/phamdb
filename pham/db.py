@@ -140,7 +140,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
                            """.format(id))
         cnx.commit()
 
-    callback(CallbackCode.status, 'initializing daitabase', 1, 2)
+    callback(CallbackCode.status, 'initializing database', 1, 2)
     try:
         with closing(server.get_connection(database=id)) as cnx:
             cnx.start_transaction()

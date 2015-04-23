@@ -2,9 +2,9 @@
 
 # If the database directory is empty, copy the initial database to it.
 # Otherwise, migrate the database.
-if [ ! /dockerdata/mysql/ibdata1 ];
+if [ ! -d /dockerdata/mysql ];
 then
-	cp -r /var/lib/mysql /dockerdata/mysql
+	cp -rp /var/lib/mysql /dockerdata/mysql
 	/etc/init.d/mysql start
 else
 	/etc/init.d/mysql start

@@ -8,32 +8,27 @@ maintainer jglamine@gmail.com
 
 # download conserved domain database
 run apt-get update && apt-get install -y wget && apt-get clean && rm -rf /tmp/* /var/tmp/*
-run mkdir -p /home/docker/conserved-domain-database
+#run mkdir -p /home/docker/conserved-domain-database
 # run wget ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz && tar -zxvf Cdd_LE.tar.gz -C /home/docker/conserved-domain-database/Cdd && rm -f Cdd_LE.tar.gz
 
-run apt-get install -y build-essential git python python-dev python-setuptools python-biopython hhsuite kalign && apt-get clean && rm -rf /tmp/* /var/tmp/*
+# install packages
+# split into multiple lines to decrease the size of each image commit because
+# dockerhub has trouble reliably handling pushes of large images
+run apt-get install -y git && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get --no-install-recommends install -y python python-dev python-setuptools && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get install -y python-biopython hhsuite kalign && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get --no-install-recommends install -y mysql-server libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
-run apt-get install -y nginx supervisor mysql-server rabbitmq-server libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
-
-run easy_install pip
-run pip install uwsgi
-
-# install code
+# download app
 run git clone https://github.com/jglamine/phage.git /home/docker/code && rm -rf /home/docker/code/.git
 
-# symlink conserved domain database
-# run ln -s /home/docker/conserved-domain-database/Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
+# install pip packages
+# installs and then removes build-essential to save space
+run apt-get install -y build-essential && easy_install pip && pip install uwsgi && pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
-# override default location for database dumps to the external volume.
-run echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webphamerator/config.py
-
-# setup all the configuration files
-run echo "daemon off;" >> /etc/nginx/nginx.conf && rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
-
-# run pip install
-run pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt
-
-# add project to python path
+# add app to python path
 run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phage.pth
 
 # create database
@@ -41,6 +36,15 @@ run service mysql start && mysql --user="root" --execute="CREATE DATABASE webpha
 
 # Edit mysql config file. Change mysql directory to the external volume.
 run sed -i "s|var/lib/mysql|dockerdata/mysql|g" etc/mysql/my.cnf
+
+# override default location for database dumps to the external volume.
+run echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webphamerator/config.py
+
+# setup configuration files for nginx, uwsgi, and supervisor
+run echo "daemon off;" >> /etc/nginx/nginx.conf && rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
+
+# symlink conserved domain database
+# run ln -s /home/docker/conserved-domain-database/Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 expose 80
 cmd ["supervisord", "-n"]
