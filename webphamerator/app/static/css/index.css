@@ -12,11 +12,6 @@ body {
 	background-color: #f04124;
 }
 
-.phage-list {
-    max-height: 50em;
-    overflow-y: auto;
-}
-
 .progress {
 	margin-bottom: 0px;
 }
@@ -33,6 +28,11 @@ hr.error {
 .col-centered {
     float: none;
     margin: 0 auto;
+}
+
+.list-scroll {
+    max-height: 223px;
+    overflow-y: auto;
 }
 
 .database-list-item {

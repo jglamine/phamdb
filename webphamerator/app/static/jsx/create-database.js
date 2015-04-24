@@ -327,7 +327,7 @@ var DatabasePhageList = React.createClass({
     }
 
     return (
-      <div className="phage-list list-group">{phages}</div>
+      <div className="list-group list-scroll">{phages}</div>
     );
   }
 });
@@ -398,7 +398,7 @@ var DatabaseList = React.createClass({
     }
 
     return (
-      <div className="list-group">{databases}</div>
+      <div className="list-group list-scroll">{databases}</div>
     );
   }
 });
