@@ -11,8 +11,18 @@ def _default_callback(*args, **kwargs):
     pass
 
 def cluster(gene_sequences, gene_ids, on_first_iteration_done=_default_callback):
-    """
-    Exceptions: MemoryError
+    """Group genes into clusters (phams) by similarity.
+
+    Returns a dictionary mapping pham id to a list of gene ids in that pham.
+
+
+    gene_sequences: a list of gene sequences (strings) to cluster.
+    gene_ids: a list of gene ids corresponding to the sequences.
+        gene_ids[i] is the id for the sequence in gene_sequences[i]
+    on_first_iteration_done: a callback function used to report status.
+
+    Exceptions: MemoryError - Occurs when the system does not have enough
+    memory to run kclust.
     """
     kclust = _KClust(on_first_iteration_done)
     return kclust.cluster(gene_sequences, gene_ids)
@@ -42,8 +52,8 @@ class _KClust(object):
                 raise
 
         self.on_first_iteration_done()
-        # run second kClust iteration
 
+        # run second kClust iteration
         try:
             second_iteration = self._second_iteration(first_iteration)
         except subprocess32.CalledProcessError as err:

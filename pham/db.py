@@ -5,6 +5,14 @@ Phamerator database is a separate mysql database running on a mysql server. For
 this reason, each database operation requires the same two arguments:
    server - a DatabaseServer object. Used to get connections to the database.
    id - the name of the mysql database.
+
+When creating or deleting a database, you can supply a callback function which
+is used to report status and error messages. This function will be called
+during database creation so that status and error messages can be reported
+asynchronously.
+
+The first argument to the callback is an instance of the CallbackCode enum.
+Subsequent arguments are different depending on the CallbackCode used.
 """
 
 from contextlib import closing
@@ -127,8 +135,11 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     cdd_search (boolean): search for each gene in NCBI conserved domain database.
     commit (boolean): Commit changes to the database.
 
+    Returns True if the operation succeed, False if it failed.
+
     Exceptions: DatabaseAlreadyExistsError
     """
+    # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
     with closing(server.get_connection()) as cnx:
         with closing(cnx.cursor()) as cursor:
@@ -142,6 +153,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
     try:
+        # upload the initial database schema
         with closing(server.get_connection(database=id)) as cnx:
             cnx.start_transaction()
             with closing(cnx.cursor()) as cursor:
@@ -149,6 +161,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
                 _execute_sql_file(cursor, sql_script_path)
             cnx.commit()
 
+        # insert phages and build phams
         success = rebuild(server, id, None, genbank_files,
                           cdd_search=cdd_search,
                           callback=callback,
@@ -172,7 +185,7 @@ def delete(server, id):
 
 def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
             cdd_search=True, commit=True, callback=_default_callback):
-    """Modify and existing Phamerator database, rebuilding phams.
+    """Modify an existing Phamerator database, rebuilding phams.
 
     Status and errors are reported to `callback`. The first argument of each
     callback is an instance of the `CallbackCode` enum.
@@ -181,6 +194,8 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
     genbank_files_to_add: a list of paths to genbank files.
     cdd_search (boolean): search for each gene in NCBI conserved domain database.
     commit (boolean): Commit changes to the database.
+
+    Returns True if the operation succeed, False if it failed.
     """
     if organism_ids_to_delete is None:
         organism_ids_to_delete = []
@@ -230,6 +245,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                         duplicate_phage_ids_on_server.add(phage_id)
 
             if len(duplicate_phage_ids_on_server) or len(duplicate_phage_ids):
+                # duplicate phages were found, report them to the callback
                 valid = False
                 for phage_id in duplicate_phage_ids_on_server:
                     filename = phage_id_to_filenames[phage_id][0]
@@ -253,7 +269,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                 callback(CallbackCode.status, 'deleting organisms', index, len(organism_ids_to_delete))
                 pham.query.delete_phage(cnx, phage_id)
 
-            # upload genbank files
+            # validate and upload genbank files
             if genbank_files_to_add is not None:
                 for index, path in enumerate(genbank_files_to_add):
                     callback(CallbackCode.status, 'uploading organisms', index, len(genbank_files_to_add))
