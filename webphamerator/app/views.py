@@ -1,7 +1,8 @@
-from flask import render_template, abort, request, url_for, redirect, send_from_directory
+from flask import render_template, abort, request, url_for, redirect, send_from_directory, send_file
 from webphamerator.app import app, db, models, celery
 import pham.db
-import pham.query
+import os
+import tempfile
 from contextlib import closing
 
 def get_navbar(active_url, ignore_done=False):
@@ -61,10 +62,11 @@ def databases():
                            navbar=get_navbar('/databases'))
 
 class PhageViewModel(object):
-    def __init__(self, name=None, id=None, genes=None):
+    def __init__(self, name=None, id=None, genes=None, url=None):
         self.name = name
         self.id = id
         self.genes = genes
+        self.url = url
 
     def to_dict(self):
         return self.__dict__
@@ -88,13 +90,15 @@ def database(db_id):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,
                                  name=phage.name,
-                                 genes=phage.genes
+                                 genes=phage.genes,
+                                 url='/databases/{}/phage/{}'.format(database.id, phage.id)
                                  ))
 
     return render_template('database.html',
                            title='Database - {}'.format(database.display_name),
                            database=database,
                            server_url=server_url,
+                           sql_dump_filename='{}.sql'.format(database.name_slug),
                            phages=phage_view_models,
                            navbar=get_navbar('/databases'))
 
@@ -144,6 +148,34 @@ def edit_database(db_id):
                            database=database,
                            phages=[phage.to_dict() for phage in phage_view_models],
                            navbar=get_navbar('/databases'))
+
+
+@app.route('/databases/<int:db_id>/phage/<phage_id>', methods=['GET'])
+def download_genbank_file(db_id, phage_id):
+    db_record = (db.session.query(models.Database)
+                .filter(models.Database.visible == True)
+                .filter(models.Database.id == db_id)
+                .first()
+                )
+
+    if db_record is None:
+        abort(404)
+
+    # export genbank file
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    with tempfile.NamedTemporaryFile(delete=False, prefix='phage-download-') as file_handle:
+        filename = file_handle.name
+        try:
+            phage = pham.db.export_to_genbank(server, db_record.mysql_name(),
+                                              phage_id,
+                                              file_handle)
+        except pham.db.DatabaseDoesNotExistError as e:
+            return abort(404)
+        except pham.db.PhageNotFoundError as e:
+            return abort(404)
+
+    return send_file(filename, as_attachment=True,
+                     attachment_filename=phage.name + '.gb', cache_timeout=1)
 
 @app.route('/jobs')
 def jobs():
