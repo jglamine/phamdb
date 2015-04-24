@@ -177,15 +177,39 @@ def download_genbank_file(db_id, phage_id):
     return send_file(filename, as_attachment=True,
                      attachment_filename=phage.name + '.gb', cache_timeout=1)
 
+@app.route('/jobs/')
 @app.route('/jobs')
 def jobs():
+    return jobs_page(1)
+
+@app.route('/jobs/page/<int:page>')
+def jobs_page(page):
+    page_size = 8
     jobs = (db.session.query(models.Job)
                 .order_by(models.Job.modified.desc())
+                .limit(page_size)
+                .offset(page_size * (page - 1))
             )
+    total_jobs = db.session.query(models.Job).count()
+    next_page = None
+    prev_page = None
+    if page * page_size < total_jobs:
+        next_page = page + 1
+    if page > 1:
+        prev_page = page - 1
+        if prev_page == 0:
+            prev_page = ''
+
+    title = 'Jobs'
+    if page != 1:
+        title += ' (page {} of {})'.format(page, total_jobs / page_size + 1)
 
     view = render_template('jobs.html',
-                           title='Jobs',
+                           title=title,
                            jobs=jobs,
+                           page=page,
+                           next_page=next_page,
+                           prev_page=prev_page,
                            navbar=get_navbar('/jobs', ignore_done=True))
 
     for job in jobs:

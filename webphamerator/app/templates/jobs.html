@@ -28,9 +28,13 @@
       ">
         <h4>{{ job.database_name }}
           <small>
-            {{ job.status_code }} - {{ job.modified|humandate }}
+            {{ job.status_code }}
+            {% if job.status_code in ['success', 'failed'] and job.runtime %}
+              <span class="pull-right">Run time: {{ job.runtime|toclocktime }}</span>
+            {% endif %}
           </small>
         </h4>
+        <span class="pull-right">{{ job.modified|humandate }}</span>
         <p class="list-group-item-text">
           Add {{ job.genbank_files_to_add.count() }} phages,
           remove {{ job.organism_ids_to_delete.count() }} phages
@@ -40,5 +44,15 @@
     </ul>
   </div>
 </div>
+<nav>
+  <ul class="pager">
+    {% if prev_page or prev_page == '' %}
+      <li class="previous"><a href="/jobs/page/{{ prev_page }}">&larr; Previous</a></li>
+    {% endif %}
+    {% if next_page %}
+      <li class="next"><a href="/jobs/page/{{ next_page }}">Next &rarr;</a></li>
+    {% endif %}
+  </ul>
+</nav>
 
 {% endblock %}
