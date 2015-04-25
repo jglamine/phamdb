@@ -69,9 +69,12 @@ class _KClust(object):
         return phams.pham_id_to_gene_ids
 
     def _first_iteration(self, gene_ids):
-        """Executes the first kClust iteration.
+        """Executes the first kClust iteration on the given genes.
 
-        Returns a _Phams object.
+        In the first iteration, sequences are converted to fasta files and
+        clustered with kClust.
+
+        Returns a _Phams object containing the clustered genes.
         """
         try:
             fasta_filename = None
@@ -91,7 +94,13 @@ class _KClust(object):
                     pass
 
     def _run_kclust(self, fasta_input_filename, s, c):
-        # run kclust
+        """Run kClust on the given fasta file.
+
+        Args s and c are command line arguments passed to kClust.
+        s: Clustering threshold. Float from 0 to 1. If 0, clustering is only
+            based on the e-value of the hit.
+        c: Alignment coverage of the longer sequence.
+        """
         output_directory = tempfile.mkdtemp(suffix='kclust')
         try:
             kclust_path = os.path.join(_DATA_DIR, 'kclust', 'kClust')
@@ -143,9 +152,12 @@ class _KClust(object):
     def _second_iteration(self, phams):
         """Run the second kClust iteration.
 
-        Phams from the first iteration are each mapped to a single consensus sequence.
-        kClust is run on these consensus sequences,
-        creating groups of consensus sequences.
+        In the second iteration, phams from the first iteration are mapped to
+        a single consensus sequence, and kClust is run on these consensus
+        sequences. This creates groups of consensus sequences.
+
+        If two conseneus sequences are in the same group, then their two
+        original phams are combined into a single pham.
         """
         # create fasta file
         try:
@@ -178,6 +190,10 @@ class _KClust(object):
                     pass
 
     def _consensus(self, gene_ids):
+        """Align and compute a consensus sequence for a group of genes.
+
+        Uses kalign for the alignment and hhconsensus for consensus.
+        """
         output_directory = tempfile.mkdtemp(suffix='-hh')
         try:
             # create fasta file for all genes in the pham
@@ -211,6 +227,11 @@ class _KClust(object):
             shutil.rmtree(output_directory)
 
     def _combine_iterations(self, gene_ids, first_iteration, second_iteration):
+        """Combine two kClust iterations into a single list of _Pham objects.
+
+        Maps the original pham id from the first iteration to the pham id from
+        the second iteration.
+        """
         phams = _Phams()
         for gene_id in gene_ids:
             first_pham_id = first_iteration.gene_id_to_pham_id[gene_id]
@@ -219,6 +240,10 @@ class _KClust(object):
         return phams
 
 class _Phams(object):
+    """Object used to hold phams.
+
+    Maintains two maps: pham_id_to_gene_ids, and gene_id_to_pham_id.
+    """
     def __init__(self):
         self.pham_id_to_gene_ids = {}
         self.gene_id_to_pham_id = {}
@@ -230,6 +255,8 @@ class _Phams(object):
         self.pham_id_to_gene_ids[pham_id].append(gene_id)
 
 def _write_fasta_record(fasta_file, sequence, gene_id):
+    """Saves a gene sequence as a fasta file.
+    """
     sequence = sequence.replace('-', 'M')
     fasta_file.write('>{}\n'.format(gene_id))
     index = 0
@@ -238,6 +265,10 @@ def _write_fasta_record(fasta_file, sequence, gene_id):
         index += 80
 
 def _call(command):
+    """Wrapper to call a shell command, discarding all output printed to the screen.
+
+    Returns the exit code of the command.
+    """
     args = command.split()
     with open(os.devnull, 'wb') as DEVNULL:
         code = subprocess32.check_call(args, stdout=DEVNULL, stderr=DEVNULL)

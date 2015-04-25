@@ -1,6 +1,6 @@
-# requires a persistent volume mounted at /dockerdata
+# Requires a persistent volume mounted at /dockerdata
 # To mount a local directory, run with:
-#     docker run -i -p=80:80 -v /local/directory:/dockerdata jglamine/phage:latest
+#     docker run -d -p=80:80 -v /local/directory:/dockerdata jglamine/phage:latest
 
 from jglamine/ncbi-cdd:wheezy
 
@@ -27,7 +27,7 @@ run apt-get install -y build-essential && easy_install pip && pip install uwsgi 
 run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phage.pth
 
 # symlink conserved domain database
-ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
+run ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 # create database
 run service mysql start && mysql --user="root" --execute="CREATE DATABASE webphamerate;" && python /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations

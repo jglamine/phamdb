@@ -10,6 +10,14 @@ from enum import Enum, EnumValue
 import pham.db_object
 
 def read_file(filepath):
+    """Reads and validates a genbank file.
+
+    Returns and instance of `db_object.Phage`
+    This phage contains a list of errors (phage.errors) as well as a list
+    of genes (phage.genes)
+
+    See `ErrorCode` for a list of the errors which can be detected.
+    """
     translation_table = 11
     return _PhageReader(filepath, translation_table).to_db_object()
 
@@ -73,6 +81,8 @@ class _PhageReader(object):
     """Reads a genbank file.
 
     Parses, validates, and stores phage data.
+
+    Call genbank.read_file() rather than using this class directly.
     """
     def __init__(self, filename, translation_table):
         self.phage_id = None
@@ -90,11 +100,15 @@ class _PhageReader(object):
 
         with open(filename, 'rU') as genbank_file:
             try:
+                # read the entire genbank file
                 self._record = SeqIO.read(genbank_file, 'genbank')
             except ValueError as err:
                 self._record = None
                 self._add_error(ErrorCode.invalid_genbank_syntax)
             if self._record is not None:
+                # read the file a second time, this time extracting the line
+                # number for each feature. This is used when reporting error
+                # messages.
                 genbank_file.seek(0)
                 self._line_numbers.read_file(genbank_file)
 
@@ -102,6 +116,10 @@ class _PhageReader(object):
             self._validate_record()
 
     def to_db_object(self):
+        """Convert all data into a `db_object.Phage` instance.
+
+        Genes and errors are also included in the `db_object.Phage` instance.
+        """
         phage_id = self.phage_id
         name = self.name
         host_strain = self.host_strain
@@ -114,7 +132,7 @@ class _PhageReader(object):
         else:
             accession = self._record.id
             notes = self._record.description
-            sequence = str(self._record.seq)
+            sequence = str(self._record.seq).upper()
 
         genes = [gene_reader.to_db_object() for gene_reader in self.genes]
 
@@ -125,16 +143,18 @@ class _PhageReader(object):
         if line_number is None:
             line_number = self._line_numbers.line_for('source')
 
-            if error == ErrorCode.no_genes:
-                pass
-            elif error == ErrorCode.no_phage_id:
-                pass
-            elif error == ErrorCode.invalid_genbank_syntax:
+            if error == ErrorCode.invalid_genbank_syntax:
                 line_number = 0
 
         self.errors.append(PhageError(error, line_number, self._filename, *args))
 
     def _validate_record(self):
+        """Extract and validate phage and gene data.
+
+        Errors are saved as a list of `PhageError` objects in self.errors.
+
+        See `ErrorCode` for a list of the errors which can be detected.
+        """
         for feature in self._record.features:
             if feature.type == 'source':
                 self.name = self._read_value(feature, ['organism'])
@@ -181,11 +201,20 @@ class _PhageReader(object):
         self._set_gene_neighbor_ids()
 
     def _read_value(self, feature, qualifiers):
+        """Read a value from the qualifier of a feature.
+
+        Qualifiers is a list of qualifiers to look for. Stop at the first
+        qualifier from the list which is found.
+        """
         for qualifier in qualifiers:
             if qualifier in feature.qualifiers:
                 return feature.qualifiers[qualifier][0]
 
     def _read_gene_record(self, feature):
+        """Read and validate a gene feature.
+
+        Gene features are features named 'CDS'.
+        """
         gene_reader = GeneReader(feature,
                                  self._record.seq,
                                  self.translation_table,
@@ -197,6 +226,11 @@ class _PhageReader(object):
         gene_reader.errors = []
 
     def _ensure_unique_gene_ids(self):
+        """Check that all the genes in this phage have unique ids.
+
+        If a gene does not have an id, generate one.
+        If two genes have the same id, report an error.
+        """
         gene_ids = set()
         gene_names = set()
         name_index = 1
@@ -223,6 +257,11 @@ class _PhageReader(object):
             gene_names.add(gene.gene_name)
 
     def _set_gene_neighbor_ids(self):
+        """Each gene must contain the id of its neighbor to the left and right.
+
+        This method goes through all the genes, setting their left and right
+        neighbor ids.
+        """
         for index, gene in enumerate(self.genes):
             if index != 0:
                 prev_gene = self.genes[index - 1]
@@ -235,6 +274,10 @@ class _PhageReader(object):
 
 
 class GenbankLineNumbers(object):
+    """Extracts the line number of each feature in a genbank file.
+
+    Used to report the line number of validation errors.
+    """
     def __init__(self, genbank_file=None):
         self._features = {}
         if genbank_file is not None:
@@ -272,6 +315,8 @@ class GenbankLineNumbers(object):
 
 
 class GeneReader(object):
+    """Reads and validates a gene from a 'CDS' feature.
+    """
     def __init__(self, feature, sequence, translation_table, filename,
                  line_number=None, validate_gene_sequence=True):
         if feature.type != 'CDS':
@@ -307,6 +352,8 @@ class GeneReader(object):
         self._read_translation()
 
     def to_db_object(self):
+        """Convert to a `db_object.Gene` instance.
+        """
 
         return pham.db_object.Gene(self.gene_id, self.notes, self.start, self.stop,
                     self.length, self._gene_sequence, self.translation, self.start_codon,
@@ -450,6 +497,16 @@ class GeneReader(object):
                 self.translation = translation
 
 class PhageError(object):
+    """A Phage (or gene) validation error.
+
+    Contains the error code, line number, filename, and any other arguments
+    necessary to display in an error message.
+
+    Contains a method to generate a human readable error message string.
+
+    The equals (==) operator is overloaded to work with both `PhageError`
+    and `ErrorCode` instances.
+    """
     def __init__(self, error_code, line_number, filename, *args):
         self.filename = filename
         self.code = error_code
