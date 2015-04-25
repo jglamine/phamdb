@@ -2,19 +2,14 @@
 # To mount a local directory, run with:
 #     docker run -i -p=80:80 -v /local/directory:/dockerdata jglamine/phage:latest
 
-from debian:wheezy
+from jglamine/ncbi-cdd:wheezy
 
 maintainer jglamine@gmail.com
-
-# download conserved domain database
-run apt-get update && apt-get install -y wget && apt-get clean && rm -rf /tmp/* /var/tmp/*
-#run mkdir -p /home/docker/conserved-domain-database
-# run wget ftp://ftp.ncbi.nlm.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz && tar -zxvf Cdd_LE.tar.gz -C /home/docker/conserved-domain-database/Cdd && rm -f Cdd_LE.tar.gz
 
 # install packages
 # split into multiple lines to decrease the size of each image commit because
 # dockerhub has trouble reliably handling pushes of large images
-run apt-get install -y git && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get update && apt-get install -y git && apt-get clean && rm -rf /tmp/* /var/tmp/*
 run apt-get --no-install-recommends install -y python python-dev python-setuptools && apt-get clean && rm -rf /tmp/* /var/tmp/*
 run apt-get install -y python-biopython hhsuite kalign && apt-get clean && rm -rf /tmp/* /var/tmp/*
 run apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
@@ -31,6 +26,9 @@ run apt-get install -y build-essential && easy_install pip && pip install uwsgi 
 # add app to python path
 run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phage.pth
 
+# symlink conserved domain database
+ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
+
 # create database
 run service mysql start && mysql --user="root" --execute="CREATE DATABASE webphamerate;" && python /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
 
@@ -42,9 +40,6 @@ run echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webp
 
 # setup configuration files for nginx, uwsgi, and supervisor
 run echo "daemon off;" >> /etc/nginx/nginx.conf && rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
-
-# symlink conserved domain database
-# run ln -s /home/docker/conserved-domain-database/Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 expose 80
 cmd ["supervisord", "-n"]
