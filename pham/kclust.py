@@ -156,7 +156,7 @@ class _KClust(object):
         a single consensus sequence, and kClust is run on these consensus
         sequences. This creates groups of consensus sequences.
 
-        If two conseneus sequences are in the same group, then their two
+        If two consensus sequences are in the same group, then their two
         original phams are combined into a single pham.
         """
         # create fasta file

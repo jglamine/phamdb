@@ -311,8 +311,15 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
 
                     # cluster genes into phams
                     if len(gene_ids):
-                        pham_id_to_gene_ids = pham.kclust.cluster(sequences, gene_ids,
-                            on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
+                        try:
+                            pham_id_to_gene_ids = pham.kclust.cluster(
+                                sequences, gene_ids,
+                                on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
+                        except MemoryError as e:
+                            # not enough ram
+                            callback(CallbackCode.out_of_memory_error)
+                            cnx.rollback()
+                            return False
 
                         # calculate the colors for the phams
                         pham_id_to_color = _assign_colors(pham_id_to_gene_ids, cursor)
@@ -698,6 +705,8 @@ def message_for_callback(code, *args, **kwargs):
     elif code == CallbackCode.gene_id_already_exists:
         phage_id = args[0]
         message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
+    elif code == CallbackCode.out_of_memory_error:
+        message = 'Insufficient memory: This application requires at least 4 GB of RAM.'
     return message
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
@@ -707,7 +716,8 @@ CallbackCode = Enum('status',
                     'duplicate_organism',
                     'duplicate_genbank_files',
                     'file_does_not_exist',
-                    'gene_id_already_exists')
+                    'gene_id_already_exists',
+                    'out_of_memory_error')
 
 class DatabaseError(Exception):
     pass
