@@ -11,6 +11,13 @@
     <p class="lead">
       {{ phages|length }} phages, {{ database.number_of_phams }} phams
     </p>
+    <p >
+      {% if database.cdd_search %}
+        <strong>Conserved domain search:</strong> Yes
+      {% else %}
+        <strong>Conserved domain search:</strong> No
+      {% endif %}
+    </p>
     <p>{{ database.description }}</p>
     <div class="panel panel-default">
       <div class="panel-heading">
