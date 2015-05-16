@@ -4,10 +4,6 @@ ACCESSION   NC_001335
 VERSION     NC_001335.1  GI:9625433
 DBLINK      BioProject: PRJNA14459
 KEYWORDS    RefSeq; complete genome.
-SOURCE      Mycobacterium phage L5
-  ORGANISM  Mycobacterium phage L5
-            Viruses; dsDNA viruses, no RNA stage; Caudovirales; Siphoviridae;
-            L5likevirus.
 REFERENCE   1  (bases 1 to 52297)
   AUTHORS   Donnelly-Wu,M.K., Jacobs,W.R. Jr. and Hatfull,G.F.
   TITLE     Superinfection immunity of mycobacteriophage L5: applications for

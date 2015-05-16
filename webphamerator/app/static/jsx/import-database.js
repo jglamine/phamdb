@@ -1,4 +1,4 @@
 React.render(
-  <CreateDatabaseForm />,
+  <ImportDatabaseForm />,
   document.getElementById('react-content')
 );

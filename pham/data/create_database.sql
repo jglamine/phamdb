@@ -22,6 +22,7 @@ DROP TABLE IF EXISTS `pham_color`;
 DROP TABLE IF EXISTS `pham_history`;
 DROP TABLE IF EXISTS `pham_old`;
 DROP TABLE IF EXISTS `scores_summary`;
+DROP TABLE IF EXISTS `version`;
 
 CREATE TABLE `domain` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
@@ -55,6 +56,7 @@ CREATE TABLE `gene` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `clustalw_status` enum('avail','pending','stale','done') NOT NULL DEFAULT 'avail',
   `blast_status` enum('avail','pending','stale','done') NOT NULL DEFAULT 'avail',
+  `cdd_status` TINYINT NOT NULL DEFAULT '0',
   PRIMARY KEY (`GeneID`),
   KEY `PhageID` (`PhageID`),
   KEY `id` (`id`),
@@ -108,7 +110,7 @@ CREATE TABLE `pham` (
   PRIMARY KEY (`GeneID`),
   KEY `orderAdded_index` (`orderAdded`),
   KEY `name_index` (`name`),
-  CONSTRAINT `pham_ibfk_2` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE
+  CONSTRAINT `pham_ibfk_1` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON UPDATE CASCADE ON DELETE CASCADE
 ) DEFAULT CHARSET=latin1;
 
 CREATE TABLE `pham_color` (

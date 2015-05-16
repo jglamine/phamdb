@@ -4,11 +4,61 @@ import unittest
 import pham.genbank
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
+_TEMP_FILENAME = os.path.join(_DATA_DIR, 'temp-test.gb')
 
 class TestGenbank(unittest.TestCase):
 
     def setUp(self):
         pass
+
+    def test_import(self):
+        # read a file
+        filename = os.path.join(_DATA_DIR, 'Anaya.gb')
+        phage = pham.genbank.read_file(filename)
+        self.assertTrue(phage.is_valid())
+
+        self.assertEqual(phage.id, '1034152')
+        self.assertEqual(phage.name, 'Anaya')
+        self.assertEqual(phage.host_strain, 'Mycobacterium smegmatis mc2 155')
+        self.assertEqual(phage.isolated, 'soil')
+        expected_note = 'Phage isolation, DNA preparation, and annotation analysis performed\nat Calvin College, Grand Rapids, MI\nSequencing performed at Joint Genome Institute, Los Alamos, NM\nSupported by Science Education Alliance, Howard Hughes Medical\nInstitute, Chevy Chase, MD.'
+        self.assertEqual(phage.notes, expected_note)
+
+    def test_export_import(self):
+        # read a file
+        filename = os.path.join(_DATA_DIR, 'D29.gb')
+        phage1 = pham.genbank.read_file(filename)
+        self.assertTrue(phage1.is_valid())
+
+        # export the file
+        pham.genbank.write_file(phage1, _TEMP_FILENAME)
+
+        # re-import the file
+        phage2 = pham.genbank.read_file(_TEMP_FILENAME)
+        self.assertTrue(phage1.is_valid())
+
+        # compare the new and old phages
+        self.assertEqual(phage1.name, phage2.name)
+        self.assertEqual(phage1.id, phage2.id)
+        self.assertEqual(len(phage1.genes), len(phage2.genes))
+        self.assertEqual(phage1.notes, phage2.notes)
+        self.assertEqual(phage1.isolated, phage2.isolated)
+        self.assertEqual(phage1.host_strain, phage2.host_strain)
+
+        for gene1, gene2 in zip(phage1.genes, phage2.genes):
+            self.assertEqual(gene1.gene_id, gene2.gene_id)
+            self.assertEqual(gene1.notes, gene2.notes)
+            self.assertEqual(gene1.start, gene2.start)
+            self.assertEqual(gene1.stop, gene2.stop)
+            self.assertEqual(gene1.orientation, gene2.orientation)
+            self.assertEqual(gene1.translation, gene2.translation)
+
+        # check genbank file
+        translation_table = 11
+        reader = pham.genbank._PhageReader(_TEMP_FILENAME, translation_table)
+        record = reader._record
+        self.assertIsNotNone(record.id)
+        self.assertNotEqual(record.id, '<unknown id>')
 
     def test_validation(self):
         # read file without errors
@@ -55,4 +105,5 @@ class TestGenbank(unittest.TestCase):
         return False
 
     def tearDown(self):
-        pass
+        if os.path.isfile(_TEMP_FILENAME):
+            os.remove(_TEMP_FILENAME)

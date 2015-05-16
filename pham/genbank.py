@@ -71,8 +71,16 @@ def write_file(phage, filepath):
                     qualifiers=qualifiers)
         features.append(feature)
 
+    annotations = {
+        'organism': 'Mycobacterium phage {}'.format(phage.name),
+        'accessions': [phage.accension],
+        'comment': phage.notes
+    }
+
     record = Bio.SeqRecord.SeqRecord(sequence,
+                                     id=phage.accension,
                                      description=phage.name,
+                                     annotations=annotations,
                                      features=features
                                      )
     SeqIO.write([record], filepath, 'genbank')
@@ -82,6 +90,9 @@ class _PhageReader(object):
 
     Parses, validates, and stores phage data.
 
+    Supports reading genbank files written for use by both the current and
+    legacy (pre 2015) versions of Phamerator.
+
     Call genbank.read_file() rather than using this class directly.
     """
     def __init__(self, filename, translation_table):
@@ -90,6 +101,8 @@ class _PhageReader(object):
         self.translation_table = translation_table
         self.host_strain = None
         self.isolation = None
+        self.accession = None
+        self.notes = None
         self.genes = []
         self.errors = []
         self._validate_gene_sequence = True
@@ -124,14 +137,12 @@ class _PhageReader(object):
         name = self.name
         host_strain = self.host_strain
         isolation = self.isolation
+        accession = self.accession
+        notes = self.notes
 
         if self._record is None:
-            accession = None
-            notes = None
             sequence = None
         else:
-            accession = self._record.id
-            notes = self._record.description
             sequence = str(self._record.seq).upper()
 
         genes = [gene_reader.to_db_object() for gene_reader in self.genes]
@@ -155,25 +166,42 @@ class _PhageReader(object):
 
         See `ErrorCode` for a list of the errors which can be detected.
         """
+        if 'organism' in self._record.annotations:
+            # read phage name
+            name_parts = self._record.annotations['organism'].split()
+            name_parts = [x for x in name_parts if x != '.']
+            if len(name_parts):
+                self.name = name_parts[-1]
+                if self.name == 'Unclassified.' and len(name_parts) > 1:
+                    self.name = name_parts[-2]
+
+                # read phage host
+                if name_parts[0] != self.name:
+                    self.host_strain = name_parts[0]
+
+        # read phage accession number
+        if 'accessions' in self._record.annotations:
+            value = self._record.annotations['accessions'][0]
+            if value != '.':
+                self.accession = value
+        if self.accession is None:
+            self.accession = self._record.id
+
+        # read notes
+        if 'comment' in self._record.annotations:
+            value = self._record.annotations['comment']
+            if value != '.':
+                self.notes = value
+        if self.notes is None:
+            self.notes = self._record.description
+
+        self.phage_id = self.name
+
         for feature in self._record.features:
             if feature.type == 'source':
-                self.name = self._read_value(feature, ['organism'])
-                if self.name is not None:
-                    self.name = self.name.split()[-1]
+                self._read_legacy_source_record(feature)
 
-                self.phage_id = self._read_value(feature, ['db_xref'])
-                if self.phage_id is not None:
-                    self.phage_id = self.phage_id.split(':')[-1]
-
-                if self.phage_id is None:
-                    self.phage_id = self.name
-                if self.name is None:
-                    self.name = self.phage_id
-
-                self.host_strain = self._read_value(feature, ['lab_host', 'specific_host'])
-                self.isolation = self._read_value(feature, ['isolation_source'])
-
-                # This tag is set when exporting phages from a database.
+                # The `pham_reader` tag is set when exporting phages.
                 # It tells the parser to ignore errors related to
                 # gene sequences, as that data does not survive the
                 # genbank -> phamerator database -> genbank conversion correctly.
@@ -200,6 +228,32 @@ class _PhageReader(object):
 
         self._set_gene_neighbor_ids()
 
+    def _read_legacy_source_record(self, feature):
+        """Read phage data from the 'source' feature.
+
+        Old versions of phamerator expected data here, so old genbank
+        files might have data here.
+        """
+        if self.name is None:
+            value = self._read_value(feature, ['organism'])
+            if value is not None:
+                self.name = value.split()[-1]
+
+        value = self._read_value(feature, ['db_xref'])
+        if value is not None:
+            self.phage_id = value.split(':')[-1]
+
+        if self.phage_id is None:
+            self.phage_id = self.name
+        if self.name is None:
+            self.name = self.phage_id
+
+        value = self._read_value(feature, ['host', 'lab_host', 'specific_host'])
+        if value is not None:
+            self.host_strain = value
+        if self.isolation is None:
+            self.isolation = self._read_value(feature, ['isolation_source'])
+
     def _read_value(self, feature, qualifiers):
         """Read a value from the qualifier of a feature.
 
@@ -208,7 +262,9 @@ class _PhageReader(object):
         """
         for qualifier in qualifiers:
             if qualifier in feature.qualifiers:
-                return feature.qualifiers[qualifier][0]
+                value = feature.qualifiers[qualifier][0]
+                if value != '':
+                    return value
 
     def _read_gene_record(self, feature):
         """Read and validate a gene feature.
@@ -362,10 +418,14 @@ class GeneReader(object):
                     self.right_neighbor_id)
 
     def _read_gene_id(self):
-        for ref in self._feature.qualifiers.get('db_xref', []):
-            if 'GeneID' not in ref:
-                self.gene_id = ref
-                break
+        if 'locus_tag' in self._feature.qualifiers:
+            self.gene_id = self._feature.qualifiers['locus_tag'][0]
+
+        if self.gene_id is None:
+            for ref in self._feature.qualifiers.get('db_xref', []):
+                if 'GeneID' not in ref:
+                    self.gene_id = ref
+                    break
 
         if self.gene_id is None:
             # this error is treated as a warning
@@ -417,6 +477,10 @@ class GeneReader(object):
         self.notes = None
         if 'note' in self._feature.qualifiers:
             self.notes = self._feature.qualifiers['note'][0]
+        elif 'product' in self._feature.qualifiers:
+            product = self._feature.qualifiers['product'][0]
+            if product.lower() != 'hypothetical protein':
+                self.notes = product
 
     def _read_orientation(self):
         orientation = self._feature.strand

@@ -142,13 +142,14 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
     with closing(server.get_connection()) as cnx:
+        if pham.query.database_exists(cnx, id):
+            raise DatabaseAlreadyExistsError
+
         with closing(cnx.cursor()) as cursor:
-            if _database_exists(cursor, id):
-                raise DatabaseAlreadyExistsError
-            cursor.execute("""
+            cursor.execute('''
                            CREATE DATABASE {}
                            DEFAULT CHARACTER SET 'utf8'
-                           """.format(id))
+                           '''.format(id))
         cnx.commit()
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
@@ -352,7 +353,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
                 # search for genes in conserved domain database
                 # only search for new genes
-                pham.conserveddomain.find_domains(cnx, new_gene_ids, new_gene_sequences)
+                pham.conserveddomain.find_domains(cnx, new_gene_ids, new_gene_sequences, num_threads=2)
 
         except Exception:
             cnx.rollback()
@@ -366,7 +367,15 @@ def load(server, id, filepath):
     """Load a Phamerator database from an SQL dump.
 
     Also migrates to the new schema if needed.
+
+    Raises:
+        IOError when input file is not found
+        DatabaseAlreadyExistsError
+        ValueError when database schema is invalid
     """
+    if not os.path.isfile(filepath):
+        raise IOError('No such file: {}'.format(filepath))
+
     with closing(server.get_connection()) as cnx:
         if pham.query.database_exists(cnx, id):
             raise DatabaseAlreadyExistsError('Database {} already exists.'.format(id))
@@ -375,11 +384,20 @@ def load(server, id, filepath):
             cursor.execute("CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(id))
         cnx.commit()
 
-    with closing(server.get_connection(database=id)) as cnx:
-        with closing(cnx.cursor()) as cursor:
-            _execute_sql_file(cursor, filepath)
-        _update_schema(cnx)
-        cnx.commit()
+    try:
+        with closing(server.get_connection(database=id)) as cnx:
+            with closing(cnx.cursor()) as cursor:
+                try:
+                    _execute_sql_file(cursor, filepath)
+                except DatabaseError:
+                    raise ValueError('File does not contain valid SQL.')
+            if not _is_schema_valid(cnx):
+                raise ValueError('Invalid database schema.')
+            _update_schema(cnx)
+            cnx.commit()
+    except:
+        delete(server, id)
+        raise
 
 def export(server, id, filepath):
     """Saves a SQL dump of the database to the given file.
@@ -460,6 +478,26 @@ def export_to_genbank(server, id, organism_id, filename):
     pham.genbank.write_file(phage, filename)
     return phage
 
+def summary(server, id):
+    """Returns a DatabaseSummaryModel with information on the database.
+    """
+    with closing(server.get_connection()) as cnx:
+        if not pham.query.database_exists(cnx, id):
+            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+
+    with closing(server.get_connection(database=id)) as cnx:
+        phage_count = pham.query.count_phages(cnx)
+        pham_count = pham.query.count_phams(cnx)
+        domain_hits = pham.query.count_domains(cnx)
+
+    return DatabaseSummaryModel(phage_count, pham_count, domain_hits)
+
+class DatabaseSummaryModel(object):
+    def __init__(self, organism_count, pham_count, conserved_domain_hit_count):
+        self.number_of_organisms = organism_count
+        self.number_of_phams = pham_count
+        self.number_of_conserved_domain_hits = conserved_domain_hit_count
+
 def list_organisms(server, id):
     """Returns a list of organisms in the database.
 
@@ -492,6 +530,30 @@ class OrganismSummaryModel(object):
         self.id = id
         self.genes = gene_count
 
+def _is_schema_valid(cnx):
+    """Return True if the databases has the tables required by a Phamerator database.
+
+    Checks for these tables:
+        domain
+        gene
+        gene_domain
+        phage
+        pham
+        pham_color
+    """
+    with closing(cnx.cursor()) as cursor:
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+            AND table_name IN (
+              'domain', 'gene', 'gene_domain', 'phage', 'pham', 'pham_color'
+            )
+                       ''')
+        tables_found = cursor.fetchall()[0][0]
+
+    return tables_found == 6
+
 def _update_schema(cnx):
     """Migrate databases from the old Phamerator schema.
 
@@ -500,7 +562,7 @@ def _update_schema(cnx):
 
     Add ON DELETE CASCADE constraints
     Increase VARCHAR length
-    TRUNCATE TABLE scores_summary, node
+    DELETE FROM scores_summary, node
     DROP TABLE pham_history, pham_old
     CREATE TABLE version
     """
@@ -508,21 +570,20 @@ def _update_schema(cnx):
         # add version table
         cursor.execute('''
                        CREATE TABLE IF NOT EXISTS version (
-                         id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                         version int NOT NULL
+                         version int unsigned NOT NULL PRIMARY KEY
                        )''')
         cursor.execute('SELECT * FROM version')
         if len(cursor.fetchall()) == 0:
             cursor.execute('''INSERT INTO version (version)
                               VALUES (0)
-                            ''')
+                           ''')
 
         # increase VARCHAR length
         # select character_maximum_length from information_schema.columns where table_schema = 'test_database' and table_name = 'gene' and column_name = 'name';
         cursor.execute('''
                        SELECT character_maximum_length
                        FROM information_schema.columns
-                       WHERE table_schema IN (SELECT database())
+                       WHERE table_schema = DATABASE()
                         AND table_name = 'gene'
                         AND column_name = 'Name'
                        ''')
@@ -545,18 +606,21 @@ def _update_schema(cnx):
             cursor.execute('ALTER TABLE scores_summary MODIFY query VARCHAR(127)')
             cursor.execute('ALTER TABLE scores_summary MODIFY subject VARCHAR(127)')
 
-        # add ON DELETE CASCADE constraints
+        # add ON DELETE CASCADE ON UPDATE CASCADE constraints
         cursor.execute('''
                        SELECT COUNT(delete_rule)
                        FROM information_schema.referential_constraints
-                       WHERE constraint_schema IN (SELECT database())
+                       WHERE constraint_schema = DATABASE()
                         AND delete_rule = 'CASCADE'
                        ''')
         if cursor.fetchall()[0][0] < 6:
+            # some tables have the wrong name for `pham_ibfk_1`
+            _drop_foreign_key(cursor, 'pham', 'pham_ibfk_2')
+
             _migrate_foreign_key(cursor, 'gene', 'gene_ibfk_1', 'PhageID', 'phage', 'PhageID')
             _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_1', 'GeneID', 'gene', 'GeneID')
             _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_2', 'hit_id', 'domain', 'hit_id')
-            _migrate_foreign_key(cursor, 'pham', 'pham_ibfk_2', 'GeneID', 'gene', 'GeneID')
+            _migrate_foreign_key(cursor, 'pham', 'pham_ibfk_1', 'GeneID', 'gene', 'GeneID')
             _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_1', 'query', 'gene', 'GeneID')
             _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_2', 'subject', 'gene', 'GeneID')
 
@@ -569,15 +633,32 @@ def _update_schema(cnx):
         cursor.execute('DROP TABLE IF EXISTS pham_old')
         cursor.execute('DROP TABLE IF EXISTS pham_history')
 
+        # Add a column to keep track of which genes have been searched for
+        # in the conserved domain database
+        # This column is used by the legacy k_phamerate scripts.
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+            AND table_name = 'gene'
+            AND column_name = 'cdd_status'
+            ''')
+        cdd_column_exists = cursor.fetchall()[0][0] == 1
+        if not cdd_column_exists:
+            cursor.execute('''
+                ALTER TABLE `gene`
+                ADD COLUMN `cdd_status` TINYINT(1) NOT NULL AFTER `blast_status`
+            ''')
+            cursor.execute('''
+                UPDATE gene
+                SET cdd_status = 0
+            ''')
+
 def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table, other_feild):
-    try:
-        cursor.execute('ALTER TABLE {} DROP FOREIGN KEY {}'.format(this_table, constraint))
-    except mysql.connector.errors.Error as e:
-        if e.errno == errorcode.ER_ERROR_ON_RENAME:
-            # the constraint did not already exist
-            pass
-        else:
-            raise
+    """Replace a foreign key constraint with one which specifies to cascade
+    on delete and update.
+    """
+    _drop_foreign_key(cursor, this_table, constraint)
 
     cursor.execute('''
                    ALTER TABLE {}
@@ -585,6 +666,16 @@ def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table
                    ON UPDATE CASCADE
                    ON DELETE CASCADE
                    '''.format(this_table, constraint, this_feild, other_table, other_feild))
+
+def _drop_foreign_key(cursor, table, constraint):
+    try:
+        cursor.execute('ALTER TABLE {} DROP FOREIGN KEY {}'.format(table, constraint))
+    except mysql.connector.errors.Error as e:
+        if e.errno == errorcode.ER_ERROR_ON_RENAME:
+            # the constraint did not already exist
+            pass
+        else:
+            raise
 
 def _increment_version(cnx):
     with closing(cnx.cursor()) as cursor:
@@ -646,15 +737,6 @@ def _make_color(gene_ids):
     red, green, blue = colorsys.hsv_to_rgb(hue, sat ,val)
     hexcode = '#%02x%02x%02x' % (red * 255, green * 255, blue * 255)
     return hexcode
-    
-def _database_exists(cursor, id):
-    """Returns True if the database exists.
-    """
-
-    cursor.execute('SHOW DATABASES LIKE %s;', (id,))
-    if len(cursor.fetchall()) == 0:
-        return False
-    return True
 
 def _execute_sql_file(cursor, filepath):
     with open(filepath, 'r') as sql_script_file:

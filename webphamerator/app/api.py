@@ -28,9 +28,12 @@ def new_database():
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
+    json_data = request.get_json()
     errors = []
 
-    json_data = request.get_json()
+    if 'sql_dump_id' in json_data:
+        return import_sql_dump()
+
     if not 'name' in json_data:
         return 'Missing property \'name\'.', 412
     if not 'description' in json_data:
@@ -110,6 +113,70 @@ def new_database():
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
+
+def import_sql_dump():
+    """Create a database from a .sql dump.
+
+    The .sql dump was previously uploaded using the '/api/file' endpoint.
+    """
+    errors = []
+    json_data = request.get_json()
+    
+    if not 'name' in json_data:
+        return 'Missing property \'name\'.', 412
+    if not 'description' in json_data:
+        return 'Missing property \'description\'', 412
+    if not 'sql_dump_id' in json_data:
+        return 'Missing property \'sql_dump_id\'.', 412
+
+    name = json_data.get('name')
+    description = json_data.get('description')
+    filename = json_data.get('sql_dump_id')
+    test = json_data.get('test', False)
+
+    count = db.session.query(models.Database).filter(models.Database.display_name == name).count()
+    if count:
+        errors.append('Database name \'{}\' is already in use.'.format(name))
+
+    if not os.path.isfile(filename):
+        errors.append('SQL file not found on server.')
+
+    if len(errors):
+        return flask.jsonify(errors=errors), 400
+
+    # create database from sql dump
+    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    database_id = models.Database.mysql_name_for(name)
+
+    try:
+        pham.db.load(server, database_id, filename)
+    except pham.db.DatabaseAlreadyExistsError:
+        errors.append('A database with that name already exists.')
+    except Exception:
+        pham.db.delete(server, database_id)
+        errors.append('Invalid database schema.')
+    finally:
+        if os.path.isfile(filename):
+            os.remove(filename)
+
+    if len(errors):
+        return flask.jsonify(errors=errors), 400
+
+    database_summary = pham.db.summary(server, database_id)
+
+    # create database record
+    database_record = models.Database(display_name=name,
+                                      name_slug=models.Database.phamerator_name_for(name),
+                                      description=description,
+                                      locked=False,
+                                      visible=True,
+                                      number_of_organisms=database_summary.number_of_organisms,
+                                      number_of_phams=database_summary.number_of_phams,
+                                      cdd_search=database_summary.number_of_conserved_domain_hits > 0)
+    db.session.add(database_record)
+    db.session.commit()
+
+    return flask.jsonify(errors=[]), 201
 
 @app.route('/api/database/<int:database_id>', methods=['POST'])
 def modify_database(database_id):
@@ -464,6 +531,38 @@ def new_genbank_file():
     }
     
     return flask.jsonify(phage=phage_data), 201
+
+@app.route('/api/file', methods=['POST'])
+def upload_file():
+    """Upload a file. Used when importing .sql files.
+
+    Response: {
+      id: "aaljfalk49tsfasd" // file id
+    }
+
+    status codes:
+        201: sucess, file was saved
+        400: invalid request
+    """
+    # get the uploaded data
+    file_handle = request.files['file']
+    if file_handle is None:
+        return 'No file uploaded.', 400
+
+    local_filename = None
+    try:
+        # save it to a file
+        with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+                                         delete=False) as local_handle:
+            local_filename = local_handle.name
+            shutil.copyfileobj(file_handle, local_handle)
+
+    except:
+        if local_filename is not None:
+            os.remove(local_filename)
+        raise
+
+    return flask.jsonify(id=local_filename)
 
 @app.route('/api/jobs/<int:job_id>', methods=['GET'])
 def job_status(job_id):

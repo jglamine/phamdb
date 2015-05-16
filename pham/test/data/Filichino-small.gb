@@ -3,9 +3,6 @@ DEFINITION  Filichino.
 ACCESSION   
 VERSION
 KEYWORDS    .
-SOURCE      Filichino
-  ORGANISM  Filichino
-            Unclassified.
 REFERENCE   1  (bases 1 to 61940)
   AUTHORS   ?.
   TITLE     Direct Submission
@@ -71,57 +68,6 @@ FEATURES             Location/Qualifiers
                      ADFDLLDEEVMEEDMSLVKEKLKEEFKLRTATSSRLTDADMVRILEYRKPIEDWFRDM
                      QLQLEKNAGDGHTVPGMKLVEGRSNRDWVSQAKTEEHLIFLGLDKSDIWETKMRSPNQ
                      MEETLRKKTKMDKKSIGVALAGYDYKPPGKPTLVKDSDPRRSIGDMDEGAWDD"
-     CDS             5733..6389
-                     /note="Original Glimmer call @bp 5733 has strength 14.40;
-                     GeneMark calls start at 5748"
-                     /codon_start=1
-                     /product="gp6"
-                     /protein_id="unknown:DNAM_60"
-                     /translation="MRSVKMAESGSNKLVVKARHKGGVEYTNGMFRIDKCIASYPHLD
-                     EPHAGEDGGTPKFSIQGLLDKEEHSGIIDAMRNSCKAIMAEKKTKVSGDKLFLKDGDK
-                     YFEDKDECKGRYNVSARESTRPTLRDAQGNKLDPKADMDDIKELFYGGAIVSILINPW
-                     YQDNKFGKRINANLRAVRFVEDGTPFGEGRIGDDDAWDDDDYDNNGSNDKDFDDDDDI
-                     "
-     CDS             6452..8518
-                     /note="Original Glimmer call @bp 6452 has strength 7.86"
-                     /codon_start=1
-                     /product="gp7"
-                     /protein_id="unknown:DNAM_70"
-                     /translation="MTENMRLDYESKSRTNLVTQGLAKYVADPSTGILMAAWENNDDG
-                     EIDFWDITHGKKPPARFIDRLRDPKVLKWAFNAQFERMMTERCLGIKVDPHSWRCTMV
-                     LAYMMGFSGNLAQVGTALGFDEDKLKDPMGKKLIGMFSSPRKPTKKDPYEWRDAITHP
-                     EEFAQFGSYCRQDVRSESAIGKRLSRYPILESEWDAYYLDQYINDTGLTIDRRFAQAA
-                     LDCAERYKPRLIEEMKDLTHLDNPNSTTKILPWLNERGYVFSDMRAETVEQAIREADQ
-                     MGLEEEVVRVLQLRLHTNKSSLGKYTTMLEDSVDGKFYYTLQMHGASRTGRWAGRKLQ
-                     THNFTRTPKMLESEVDQEIVKDLILRRDLEALELYVGQPMDALTGMIRAAIVPEPGKR
-                     FVVCDLSSIESVVIGWLTDCKWFMDTLKAGRDLYRSFAAEWLSLPYEETKPHRGKAKP
-                     ATLGAGYGLGGGKFDPKTRKKTGLWAYGENMGVFMTQKEAQASVDAFRKLCPEIVGHW
-                     RELEDAARYVIKNGARSAKGVVISKKCGKVTFEFRKPFMTILLPSGRRLYYLKPFLKQ
-                     KTIEYTDKKTGEIKTFESQQICYYGNLTGKKWGVNYTHGGKLVENIVQAIARDVLLEG
-                     LKKAHAAGFKIPFHVHDEIITEVDDDDEERNVEMLTSLMAAKISWAPGLPLGAAGWEG
-                     YFYRKD"
-     CDS             8521..8808
-                     /note="Original Glimmer call @bp 8521 has strength 3.90"
-                     /codon_start=1
-                     /product="gp8"
-                     /protein_id="unknown:DNAM_80"
-                     /translation="MAAKVKRESKVEKEIREYALATGWWVAKFVSPGKNAVPDRIFIK
-                     RGIVVFMEVKRPGEEPTQQQDLRMKEMKKHGAIVCWFDSFEEAKEWLDFLC"
-     CDS             8792..10327
-                     /note="Original Glimmer call @bp 8792 has strength 6.78"
-                     /codon_start=1
-                     /product="gp9"
-                     /protein_id="unknown:DNAM_90"
-                     /translation="MISYAEYKARKFALAFYKRFQLHDYQRVAYDFIMANPFCALFID
-                     MGLGKTITSLTVAVDLLMNFEVKRVLIIAPRRVAKKTWPDEIANWTHTCMFEYSVIDG
-                     SQEERMRATRSDASIHIVSRDNVEWLTEVWKKKWPYDMVIIDESSSFKDHKTKRFKAL
-                     NRARPYITRMVQLTATPAAETYMHLFAQIFLLDQGERFGRTITHFQDEYFTYNRWTYK
-                     HKLRAGSEEKILAKIADICLVMRAEDYLDIQKPVYINRRVMMDRKTSAKYTEMAENFI
-                     VEVYGDGDEPVMVEAETAASLSSKLLQMSSGVLYNTYLEGINPKTGKPIQKRDVYELH
-                     TAKLDMLEEIIEECAGLNILVGYHFKSSLDRLKQRFPKAVQMDKEGECVTKWNQGKIP
-                     MLLAHPQSAGHGLNLQKGGHIIVFYDIPYSLELYLQFIGRLARQGQPHLVKVIHLIAE
-                     GEKKDKKTGEWVPMRTVDSGVVEAVQAKQDGQEWLLQELLRIRRRRADARRRQLAAAA
-                     EEW"
 ORIGIN      
         1 tgtttagcat gtggatctag cctgtcatgt atatcaggcg tgatatgtgg tgcgtggata
        61 gcgattctgc gagcgctacg catagcaggc gcgtcgatct gtgtgttacc taccctaccc

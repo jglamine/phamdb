@@ -24,6 +24,7 @@ def get_navbar(active_url, ignore_done=False):
     navbar = []
     navbar.append(NavbarItem('Databases', '/databases'))
     navbar.append(NavbarItem('Create Database', '/databases/new'))
+    navbar.append(NavbarItem('Import Database', '/databases/import'))
     navbar.append(NavbarItem('Jobs', '/jobs',
                   info=queued_and_running, success=success, error=error))
 
@@ -316,6 +317,12 @@ def create_database():
     return render_template('create-database.html',
                            title='Create Database',
                            navbar=get_navbar('/databases/new'))
+
+@app.route('/databases/import')
+def import_database():
+    return render_template('import-database.html',
+                           title='Import Database from SQL File',
+                           navbar=get_navbar('/databases/import'))
 
 @app.route('/db/<path:path>')
 def download_database(path):

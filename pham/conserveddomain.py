@@ -51,6 +51,17 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
             except IOError:
                 pass
 
+    # set the gene.cdd_status flag to True
+    # this flag is used by legacy k_phamerate scripts
+    with closing(cnx.cursor()) as cursor:
+        id_parameters = ','.join(['%s'] * len(gene_ids))
+        query = '''
+            UPDATE gene
+            SET cdd_status = 1
+            WHERE gene.GeneID IN ( %s )
+                       ''' % id_parameters
+        cursor.execute(query, params=gene_ids)
+
 def read_domains_from_xml(cnx, xml_filename):
     with open(xml_filename, 'r') as xml_handle:
         with closing(cnx.cursor()) as cursor:

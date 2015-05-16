@@ -102,9 +102,11 @@ class _BaseDatabaseTask(celery.Task):
         job_id = args[0]
         job_record = self._get_job(job_id)
         database_record = self._get_database(job_record.database_id)
+        database_record.locked = False
         if job_record.status_code != 'failed':
             job_record.status_code = 'failed'
             job_record.status_message = 'An unexpected error occurred.'
+        db.session.commit()
 
         self.failure_hook(database_record, job_record, exc)
         self.always(job_record)

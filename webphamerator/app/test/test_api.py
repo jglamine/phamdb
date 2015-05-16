@@ -282,7 +282,7 @@ class TestAddGenbankFile(unittest.TestCase):
         response = self.app.post('/api/databases',
                                  data=json.dumps(post_data),
                                  content_type='application/json')
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 201, response.get_data())
         database_record = (db.session.query(Database)
                            .filter(Database.display_name == self.database_names[2])
                            .first())

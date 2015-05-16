@@ -27,6 +27,14 @@ def list_organisms(cnx):
         rows = cursor.fetchall()
     return rows
 
+def count_domains(cnx):
+    with closing(cnx.cursor()) as cursor:
+        cursor.execute(
+            'SELECT COUNT(1) FROM gene_domain'
+        )
+        rows = cursor.fetchall()
+    return rows[0][0]
+        
 def delete_phage(cnx, phage_id):
     with closing(cnx.cursor()) as cursor:
         cursor.execute('''

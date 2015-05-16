@@ -45,7 +45,7 @@ class Phage(object):
             if len(rows) == 0:
                 raise PhageNotFoundError('id: {}'.format(phage_id))
             row = rows[0]
-            phage = Phage(row[0], row[1], row[2], row[3], row[4], row[5], row[6], None, None, None)
+            phage = Phage(row[0], row[1], row[2], row[3], row[4], row[5], str(row[6]), None, None, None)
 
             # get genes
             cursor.execute('''
@@ -55,7 +55,7 @@ class Phage(object):
                            ''', (phage_id,))
             genes = []
             for row in cursor.fetchall():
-                gene = Gene(row[0], row[1], row[2], row[3], row[4], None, row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], gc=row[13], gc1=row[14], gc2=row[15], gc3=row[16])
+                gene = Gene(row[0], str(row[1]), row[2], row[3], row[4], None, row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], gc=row[13], gc1=row[14], gc2=row[15], gc3=row[16])
                 genes.append(gene)
             phage.genes = genes
 
