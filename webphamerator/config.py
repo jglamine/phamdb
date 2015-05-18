@@ -11,4 +11,5 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERYD_CONCURRENCY = 1
 
-SECRET_KEY = 'XcdnxpdQ3HgvbWPcrQCyy69VYcBYIg8xjs0nx542'
+# replace this in production
+SECRET_KEY = 'override in production'

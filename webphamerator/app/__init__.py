@@ -1,5 +1,4 @@
 import os
-
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from celery import Celery
@@ -28,7 +27,7 @@ if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
 db = SQLAlchemy(app)
 celery = make_celery(app)
 
-from webphamerator.app import filters, views, api, models, tasks
+from webphamerator.app import filters, auth, views, api, models, tasks
 
 if not app.debug:
     import logging

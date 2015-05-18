@@ -38,7 +38,7 @@
   	    </div>
   	    <div id="navbar" class="navbar-collapse collapse">
   	      <ul class="nav navbar-nav">
-  	      	{% for item in navbar %}
+  	      	{% for item in navbar if not item.right_side %}
   	      	<li {% if item.active %} class="active" {% endif %} >
   	      		<a href="{{ item.url }}">
   	      			{{ item.title }}
@@ -55,6 +55,33 @@
   	      	</li>
   	      	{% endfor %}
   	      </ul>
+          <ul class="nav navbar-nav navbar-right">
+            {% for item in navbar if item.right_side %}
+            <li {% if item.active %} class="active" {% endif %} >
+              <a href="{{ item.url }}">
+                {{ item.title }}
+                {%if item.info %}
+                <span class="badge">{{ item.info }}</span>
+                {% endif %}
+                {%if item.success %}
+                <span class="badge badge-success">{{ item.success }}</span>
+                {% endif %}
+                {%if item.error %}
+                <span class="badge badge-error">{{ item.error }}</span>
+                {% endif %}
+              </a>
+            </li>
+            {% endfor %}
+            {% if show_sign_out() %}
+            <li>
+              <a>
+                <form action='signout' method="post">
+                  <input id='signout' class='btn btn-default btn-xs' type='submit' value='Sign Out'>
+                </form>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
   	    </div>
   	  </div>
   	</nav>

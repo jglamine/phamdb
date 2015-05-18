@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% for message in errors %}
+  <div class="alert alert-danger" role="alert">
+    <strong>Error</strong> {{ message }}
+  </div>
+{% endfor %}
+
+<h2>Password</h2>
+<form method="post">
+	<input type="password" name="password">
+  <input type="submit">
+</form>
+
+{% endblock %}

@@ -1,5 +1,5 @@
-from flask import render_template, abort, request, url_for, redirect, send_from_directory, send_file
-from webphamerator.app import app, db, models, celery
+from flask import render_template, abort, request, url_for, redirect, send_from_directory, send_file, session
+from webphamerator.app import app, db, models, celery, auth
 import pham.db
 import os
 import tempfile
@@ -25,6 +25,7 @@ def get_navbar(active_url, ignore_done=False):
     navbar.append(NavbarItem('Databases', '/databases'))
     navbar.append(NavbarItem('Create Database', '/databases/new'))
     navbar.append(NavbarItem('Import Database', '/databases/import'))
+    navbar.append(NavbarItem('Settings', '/settings', right_side=True))
     navbar.append(NavbarItem('Jobs', '/jobs',
                   info=queued_and_running, success=success, error=error))
 
@@ -39,13 +40,15 @@ class NavbarItem(object):
                  active=False,
                  info=None,
                  success=None,
-                 error=None):
+                 error=None,
+                 right_side=False):
         self.title = title
         self.url = url
         self.active = active
         self.info = info
         self.success = success
         self.error = error
+        self.right_side = right_side
 
 @app.route('/')
 @app.route('/index')
@@ -323,6 +326,77 @@ def import_database():
     return render_template('import-database.html',
                            title='Import Database from SQL File',
                            navbar=get_navbar('/databases/import'))
+
+@app.route('/signin', methods=['GET'])
+def signin_page():
+    errors = session.get('errors', [])
+    if len(errors):
+        del session['errors']
+
+    return render_template('signin.html',
+                           title='Sign In',
+                           errors=errors,
+                           navbar=[])
+
+@app.route('/signin', methods=['POST'])
+def sign_in():
+    password = request.form.get('password')
+    if password is not None:
+        password = password.strip()
+        success = auth.authenticate(password)
+        if success:
+            return redirect('/')
+
+    session['errors'] = ['Incorrect password.']
+    return redirect('/signin')
+
+@app.route('/signout', methods=['POST'])
+def sign_out():
+    auth.sign_out()
+    return redirect(url_for('databases'))
+
+@app.route('/settings', methods=['GET'])
+def settings():
+    successes = session.get('successes', [])
+    if len(successes):
+        del session['successes']
+    errors = session.get('errors', [])
+    if len(errors):
+        del session['errors']
+
+    return render_template('settings.html',
+                           title='Settings',
+                           successes=successes,
+                           errors=errors,
+                           navbar=get_navbar('/settings'),
+                           password_required=auth.is_password_required())
+
+@app.route('/settings', methods=['POST'])
+def update_settings():
+    errors = []
+    successes = []
+
+    # set password
+    password = request.form.get('password')
+    if password is not None:
+        password = password.strip()
+        if password == '':
+            password = None
+            errors.append('Password must not be blank.')
+
+    if password is not None:
+        auth.set_password(password)
+        successes.append('Password updated.')
+    
+    # delete password
+    if request.form.get('delete-password') == 'true':
+        auth.delete_password()
+        successes.append('Password deleted.')
+
+    session['errors'] = errors
+    session['successes'] = successes
+
+    return redirect(url_for('settings'))
 
 @app.route('/db/<path:path>')
 def download_database(path):

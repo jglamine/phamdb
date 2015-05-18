@@ -4,6 +4,12 @@ body {
   padding-bottom: 16px;
 }
 
+#signout {
+    padding-left: 6px;
+    padding-right: 6px;
+    padding: 1px;
+}
+
 .badge-success {
 	background-color: #43ac6a;
 }

@@ -85,3 +85,10 @@ class GenbankFile(db.Model):
 
     def __repr__(self):
         return '<GenbankFile {} {}>'.format(self.id, self.name)
+
+class Password(db.Model):
+    """Stores the password used for authentication.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    digest_key = db.Column(db.String(64))
+    salt = db.Column(db.String(32))

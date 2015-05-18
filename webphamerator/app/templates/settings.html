@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% for message in successes %}
+  <div class="alert alert-success" role="alert">
+    <strong>Success</strong> {{ message }}
+  </div>
+{% endfor %}
+
+{% for message in errors %}
+  <div class="alert alert-danger" role="alert">
+    <strong>Error</strong> {{ message }}
+  </div>
+{% endfor %}
+
+<h2>Password</h2>
+<p>Set a password on the site. Users will need this password in order to access the site.</p>
+<form method="post">
+	<input type="password" name="password">
+  <input type="submit">
+</form>
+
+{% if password_required %}
+  <h2>Remove Password</h2>
+  <p>Remove the password from the site. Users will not need a password in order to access the site.</p>
+  <form method="post">
+    <input type="hidden" name="delete-password" value="true">
+    <input type="submit" value="Delete Password">
+  </form>
+{% endif %}
+
+{% endblock %}
