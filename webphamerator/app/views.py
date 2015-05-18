@@ -403,5 +403,7 @@ def download_database(path):
     return send_from_directory(app.config['DATABASE_DUMP_DIR'], path)
 
 @app.route('/db')
-def thing():
+def database_root():
+    """Phamerator GETs this route to verify that a database URL is correct.
+    """
     return '', 200

@@ -5,13 +5,14 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {% if title %}
-    <title>{{ title }} - Phamerator</title>
+    <title>{{ title }} - PhamDB</title>
     {% else %}
-    <title>Phamerator</title>
+    <title>PhamDB</title>
     {% endif %}
 
     <link href="/static/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/index.css" rel="stylesheet">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
     <script src="/static/js/lodash.min.js"></script>
     <script src="/static/js/react-with-addons.min.js"></script>
@@ -34,7 +35,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-  	      <a class="navbar-brand" href="/">Phamerator</a>
+  	      <a class="navbar-brand" href="/">PhamDB</a>
   	    </div>
   	    <div id="navbar" class="navbar-collapse collapse">
   	      <ul class="nav navbar-nav">
@@ -94,7 +95,7 @@
   	      	{% if title %}
   	      	{{ title }}
   	      	{% else %}
-  	      	Phamerator
+  	      	PhamDB
   	      	{% endif %}
   	      </h1>
 
