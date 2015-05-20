@@ -46,7 +46,12 @@ hr.error {
 }
 
 .large {
-    font-size: 8em;
+    font-size: 2em;
+}
+
+.select-text {
+    border: none;
+    cursor: text;
 }
 
 .glyphicon.spinning {
