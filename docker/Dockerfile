@@ -16,7 +16,7 @@ run apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/t
 run apt-get --no-install-recommends install -y mysql-server libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
 run apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
-# download app
+# download source code
 run git clone https://github.com/jglamine/phage.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages
@@ -32,11 +32,14 @@ run ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 # create database
 run service mysql start && mysql --user="root" --execute="CREATE DATABASE webphamerate;" && python /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
 
-# Edit mysql config file. Change mysql directory to the external volume.
+# edit mysql config file. Change mysql directory to the external volume.
 run sed -i "s|var/lib/mysql|dockerdata/mysql|g" etc/mysql/my.cnf
 
 # override default location for database dumps to the external volume.
 run echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webphamerator/config.py
+
+# add a cron job to delete temporary files every day at 2:30 am
+run echo "30 2 * * * /home/docker/code/docker/clear-temporary-files.sh" | crontab -
 
 # setup configuration files for nginx, uwsgi, and supervisor
 run echo "daemon off;" >> /etc/nginx/nginx.conf && rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
