@@ -11,6 +11,7 @@ class Database(db.Model):
     description = db.Column(db.String(2048))
     number_of_organisms = db.Column(db.Integer)
     number_of_phams = db.Column(db.Integer)
+    number_of_orphams = db.Column(db.Integer)
     created = db.Column(db.DateTime())
     modified = db.Column(db.DateTime(), default=datetime.datetime.utcnow())
     locked = db.Column(db.Boolean())

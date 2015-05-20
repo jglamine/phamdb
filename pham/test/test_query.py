@@ -14,6 +14,14 @@ class TestQuery(unittest.TestCase):
         server = pham.db.DatabaseServer('localhost', 'root')
         pham.db.delete(server, _DB_ID)
 
+    def test_count_orphas(self):
+        server = pham.db.DatabaseServer('localhost', 'root')
+        sql_path = os.path.join(_DATA_DIR, 'anaya-with-cdd.sql')
+        pham.db.load(server, _DB_ID, sql_path)
+
+        with closing(server.get_connection(database=_DB_ID)) as cnx:
+            self.assertEqual(96, pham.query.count_orphan_genes(cnx))
+
     def test_delete_phage(self):
         server = pham.db.DatabaseServer('localhost', 'root')
 

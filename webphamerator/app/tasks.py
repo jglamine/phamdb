@@ -1,7 +1,6 @@
 import datetime
 import os
 import pham.db
-import pham.query
 from contextlib import closing
 from webphamerator.app import app, db, models, celery
 
@@ -122,9 +121,11 @@ class _BaseDatabaseTask(celery.Task):
         database_record.locked = False
         database_record.created = datetime.datetime.utcnow()
         database_record.modified = datetime.datetime.utcnow()
-        with closing(self.server.get_connection(database=database_record.mysql_name())) as cnx:
-            database_record.number_of_organisms = pham.query.count_phages(cnx)
-            database_record.number_of_phams = pham.query.count_phams(cnx)
+
+        summary = pham.db.summary(self.server, database_record.mysql_name())
+        database_record.number_of_organisms = summary.number_of_organisms
+        database_record.number_of_orphams = summary.number_of_orphams
+        database_record.number_of_phams = summary.number_of_phams
 
         self.always(job_record)
 

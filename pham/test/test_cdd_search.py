@@ -12,9 +12,6 @@ _DB_ID = 'test_database'
 
 class TestCddSearch(unittest.TestCase):
 
-    def setUp(self):
-        pass
-
     def test_read_xml(self):
         server = pham.db.DatabaseServer('localhost', 'root')
         db_sql_filename = os.path.join(_DATA_DIR, 'anaya-no-cdd.sql')

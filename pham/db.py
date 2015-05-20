@@ -15,16 +15,16 @@ The first argument to the callback is an instance of the CallbackCode enum.
 Subsequent arguments are different depending on the CallbackCode used.
 """
 
-from contextlib import closing
 import os
 import random
 import colorsys
 import hashlib
 import subprocess32
-from urlparse import urlparse
-from enum import Enum
 import mysql.connector
 from mysql.connector import errorcode
+from contextlib import closing
+from urlparse import urlparse
+from enum import Enum
 import pham.genbank
 import pham.kclust
 import pham.query
@@ -322,8 +322,12 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                             cnx.rollback()
                             return False
 
-                        # calculate the colors for the phams
-                        pham_id_to_color = _assign_colors(pham_id_to_gene_ids, cursor)
+                        original_phams = _read_phams(cursor)
+                        pham_id_to_gene_ids = _assign_pham_ids(pham_id_to_gene_ids, original_phams)
+
+                        # assign colors to the phams
+                        original_colors = _read_pham_colors(cursor)
+                        pham_id_to_color = _assign_pham_colors(pham_id_to_gene_ids, original_colors)
 
                         # clear old phams and colors from database
                         # write new phams and colors to database
@@ -488,14 +492,16 @@ def summary(server, id):
     with closing(server.get_connection(database=id)) as cnx:
         phage_count = pham.query.count_phages(cnx)
         pham_count = pham.query.count_phams(cnx)
+        orpham_count = pham.query.count_orphan_genes(cnx)
         domain_hits = pham.query.count_domains(cnx)
 
-    return DatabaseSummaryModel(phage_count, pham_count, domain_hits)
+    return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
 
 class DatabaseSummaryModel(object):
-    def __init__(self, organism_count, pham_count, conserved_domain_hit_count):
+    def __init__(self, organism_count, pham_count, orpham_count, conserved_domain_hit_count):
         self.number_of_organisms = organism_count
         self.number_of_phams = pham_count
+        self.number_of_orphams = orpham_count
         self.number_of_conserved_domain_hits = conserved_domain_hit_count
 
 def list_organisms(server, id):
@@ -653,6 +659,7 @@ def _update_schema(cnx):
                 UPDATE gene
                 SET cdd_status = 0
             ''')
+    cnx.commit()
 
 def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table, other_feild):
     """Replace a foreign key constraint with one which specifies to cascade
@@ -684,49 +691,155 @@ def _increment_version(cnx):
                        SET version=version+1
                        ''')
 
-def _assign_colors(pham_id_to_gene_ids, cursor):
-    # fetch genes which previously had no pham assignment
-    cursor.execute('''
-                SELECT gene.GeneID
-                FROM gene
-                JOIN pham
-                ON gene.GeneID = pham.GeneID
-                WHERE pham.name is NULL
-                ''')
-    new_genes = { row[0] for row in cursor }
+def _read_phams(cursor):
+    """Reads phams from the database.
 
-    # fetch pham color assignments
+    Returns a dictionary mapping pham_id to a set of gene ids.
+    """
+    phams = {}
     cursor.execute('''
-                SELECT name, color
-                FROM pham_color
-                ''')
-    old_pham_to_color = {}
+        SELECT name, GeneID
+        FROM pham
+                   ''')
+    for pham_id, gene_id in cursor:
+        if pham_id not in phams:
+            phams[pham_id] = set()
+        phams[pham_id].add(gene_id)
+
+    return phams
+
+def _assign_pham_ids(phams, original_phams):
+    """Re-assigns pham ids to match the original pham ids.
+
+    If a pham contains all new genes, use a new id.
+    If a pham was created by joining old phams, use a new id.
+    If a pham was created by splitting an old pham, use a new id.
+    Otherwise, use the old id of the original pham.
+
+    Returns a dictionary mapping pham_id to a frozenset of gene ids.
+    """
+    # convert to frozen sets
+    for key, value in phams.iteritems():
+        phams[key] = frozenset(value)
+    for key, value in original_phams.iteritems():
+        original_phams[key] = frozenset(value)
+
+    final_phams = {}
+    next_id = 1
+    if len(original_phams):
+        next_id = max(original_phams.iterkeys()) + 1
+
+    id_finder = _PhamIdFinder(phams, original_phams)
+
+    for genes in phams.itervalues():
+        original_pham_id = id_finder.find_original_pham_id(genes)
+        if original_pham_id is None:
+            original_pham_id = next_id
+            next_id += 1
+        final_phams[original_pham_id] = genes
+
+    return final_phams
+
+class _PhamIdFinder(object):
+    def __init__(self, phams, original_phams):
+        """
+        phams is a dictionary mapping pham_id to a frozenset of gene ids
+        original_phams is a frozenset mapping pham_id to a frozenset of gene ids
+        """
+        # build helper data structures
+        self.original_genes = set()
+        for genes in original_phams.itervalues():
+            self.original_genes.update(genes)
+
+        self.genes = set()
+        for genes in phams.itervalues():
+            self.genes.update(genes)
+
+        self.original_genes_to_pham_id = {}
+        for pham_id, genes in original_phams.iteritems():
+            self.original_genes_to_pham_id[genes] = pham_id
+
+        self.original_gene_to_pham_id = {}
+        for pham_id, genes in original_phams.iteritems():
+            for gene_id in genes:
+                self.original_gene_to_pham_id[gene_id] = pham_id
+
+        self.phams = phams
+        self.original_phams = original_phams
+
+    def find_original_pham_id(self, genes):
+        if genes in self.original_genes_to_pham_id:
+            # pham is identical to original pham
+            # use the old id
+            return self.original_genes_to_pham_id[genes]
+
+        # find the original pham
+        old_genes = genes.intersection(self.original_genes)
+        if len(old_genes) == 0:
+            # this is a new pham with all new genes
+            # assign a new id
+            return
+
+        # check for a join
+        # make sure these genes all come from the same pham
+        original_pham_id = None
+        for gene_id in old_genes:
+            temp_pham_id = self.original_gene_to_pham_id[gene_id]
+            if original_pham_id is None:
+                original_pham_id = temp_pham_id
+            elif original_pham_id != temp_pham_id:
+                # these genes come from different phams
+                # this means that two phams were joined into one
+                # assign a new id
+                return
+
+        # check for a split
+        # make sure none of the missing genes are in another pham
+        original_pham = self.original_phams[original_pham_id]
+        missing_genes = original_pham.difference(genes)
+        if len(missing_genes):
+            for gene in missing_genes:
+                if gene in self.genes:
+                    # a missing gene is in another pham
+                    # this means that the pham was split into two
+                    # assign a new id
+                    return
+
+        # an original pham was modified by adding or removing genes
+        # use the old pham id
+        return original_pham_id
+
+def _read_pham_colors(cursor):
+    """Return a dictionary mapping pham_id to color
+    """
+    pham_colors = {}
+    cursor.execute('''
+        SELECT name, color
+        FROM pham_color
+                   ''')
     for pham_id, color in cursor:
-        old_pham_to_color[pham_id] = color
+        pham_colors[pham_id] = color
+    return pham_colors
 
-    pham_id_to_color = {}
+def _assign_pham_colors(phams, original_colors):
+    """Returns a dictionary mapping pham_id to color.
 
-    # calculate a color for each pham
-    # copy over the old color for phams which are the same as old phams
-    # if a pham gained a few new genes, its color is also copied
-    if len(old_pham_to_color):
-        for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
-            found = set()
-            genes = set(gene_ids)
-            # exclude genes which previously had no pham assignment
-            for gene_id in new_genes:
-                if gene_id in genes:
-                    found.insert(gene_id)
-                    genes.remove(gene_id)
-            new_genes -= found
-            
-            pham_id_to_color[pham_id] = old_pham_to_color.get(frozenset(genes), _make_color(gene_ids))
-    else:
-        for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
-            pham_id_to_color[pham_id] = _make_color(gene_ids)
-    return pham_id_to_color
+    phams is a dictionary mapping pham_id to a list of gene ids.
+    original_colors is a dictionary mapping pham_id to color.
+    """
+    pham_colors = {}
+    for pham_id, genes in phams.iteritems():
+        pham_colors[pham_id] = original_colors.get(pham_id, _make_color(genes))
+    return pham_colors
 
 def _make_color(gene_ids):
+    """Return a color to use for the given pham.
+
+    Returns a hex string. ex: '#FFFFFF'
+
+    Phams with only one gene are white.
+    All other phams are given a random color.
+    """
     if len(gene_ids) == 1:
         return '#FFFFFF'
 

@@ -45,6 +45,10 @@ hr.error {
     cursor: pointer;
 }
 
+.large {
+    font-size: 8em;
+}
+
 .glyphicon.spinning {
     animation: spin 2s infinite linear;
     -webkit-animation: spin2 2s infinite linear;

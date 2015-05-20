@@ -11,7 +11,10 @@
     <p class="lead">
       {{ phages|length }} phages, {{ database.number_of_phams }} phams
     </p>
-    <p >
+    <p>
+      <strong>Orphams:</strong> {{ percent_orphams}}% <small>({{ database.number_of_orphams }} / {{ database.number_of_phams }})</small>
+    </P>
+    <p>
       {% if database.cdd_search %}
         <strong>Conserved domain search:</strong> Yes
       {% else %}

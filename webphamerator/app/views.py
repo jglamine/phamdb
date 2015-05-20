@@ -86,6 +86,17 @@ def database(db_id):
     if database is None:
         abort(404)
 
+    percent_orphams = 0
+    if database.number_of_phams != 0:
+        orphams = database.number_of_orphams
+        phams = database.number_of_phams
+        if orphams is None:
+            orphams = 0
+        if phams is None:
+            phams = 0
+        percent_orphams = (float(orphams) / float(phams)) * 100
+        percent_orphams = round(percent_orphams, 1)
+
     server_url = request.url_root + 'db'
 
     server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
@@ -101,6 +112,7 @@ def database(db_id):
     return render_template('database.html',
                            title='Database - {}'.format(database.display_name),
                            database=database,
+                           percent_orphams=percent_orphams,
                            server_url=server_url,
                            sql_dump_filename='{}.sql'.format(database.name_slug),
                            phages=phage_view_models,
@@ -181,13 +193,15 @@ def download_genbank_file(db_id, phage_id):
     return send_file(filename, as_attachment=True,
                      attachment_filename=phage.name + '.gb', cache_timeout=1)
 
-@app.route('/jobs/')
-@app.route('/jobs')
+@app.route('/jobs', methods=['GET'])
 def jobs():
     return jobs_page(1)
 
 @app.route('/jobs/page/<int:page>')
 def jobs_page(page):
+    if page == 0:
+        return abort(404)
+
     page_size = 8
     jobs = (db.session.query(models.Job)
                 .order_by(models.Job.modified.desc())

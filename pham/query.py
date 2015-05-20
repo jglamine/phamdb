@@ -16,7 +16,31 @@ def count_phages(cnx):
 
 def count_phams(cnx):
     with closing(cnx.cursor()) as cursor:
-        cursor.execute('SELECT COUNT(*) FROM pham')
+        cursor.execute('''
+            SELECT count(*)
+            FROM (
+                SELECT 1
+                FROM pham
+                GROUP BY name
+            ) as temp
+                       ''')
+        return cursor.fetchall()[0][0]
+
+def count_orphan_genes(cnx):
+    """Return the number of phams with only one member.
+
+    These orphan phams are known as orphams.
+    """
+    with closing(cnx.cursor()) as cursor:
+        cursor.execute('''
+            SELECT count(*)
+            FROM (
+                SELECT 1
+                FROM pham
+                GROUP BY name
+                HAVING count(*) = 1
+            ) as temp
+                       ''')
         return cursor.fetchall()[0][0]
 
 def list_organisms(cnx):

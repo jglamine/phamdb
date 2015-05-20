@@ -171,12 +171,13 @@ def import_sql_dump():
                                       locked=False,
                                       visible=True,
                                       number_of_organisms=database_summary.number_of_organisms,
+                                      number_of_orphams=database_summary.number_of_orphams,
                                       number_of_phams=database_summary.number_of_phams,
                                       cdd_search=database_summary.number_of_conserved_domain_hits > 0)
     db.session.add(database_record)
     db.session.commit()
 
-    return flask.jsonify(errors=[]), 201
+    return flask.jsonify(errors=[], database_id=database_record.id), 201
 
 @app.route('/api/database/<int:database_id>', methods=['POST'])
 def modify_database(database_id):
