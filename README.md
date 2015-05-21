@@ -32,7 +32,7 @@ Use the following commands to download and run PhamDB:
 
 Download the image:
 
-    docker pull jglamine/phage:latest
+    docker pull jglamine/phamdb:latest
 
 Create a directory to store the database in:
 
@@ -40,7 +40,7 @@ Create a directory to store the database in:
 
 Run the server as a daemon, set to start automatically when the server starts.
 
-    docker run -d --restart=always -p=80:80 -v /home/<username>/phamdb:/dockerdata jglamine/phage:latest
+    docker run -d --restart=always -p=80:80 -v /home/<username>/phamdb:/dockerdata jglamine/phamdb:latest
 
 You can now use PhamDB by visiting your server's IP address with a web browser.
 

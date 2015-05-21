@@ -1,6 +1,6 @@
-# Requires a persistent volume mounted at /dockerdata
-# To mount a local directory, run with:
-#     docker run -d -p=80:80 -v /local/directory:/dockerdata jglamine/phage:latest
+# PhamDB
+# A web application for quickly creating and modifying Phamerator databases.
+# github.com/jglamine/phamdb
 
 from jglamine/ncbi-cdd:wheezy
 
@@ -17,14 +17,14 @@ run apt-get --no-install-recommends install -y mysql-server libmysqlclient-dev &
 run apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # download source code
-run git clone https://github.com/jglamine/phage.git /home/docker/code && rm -rf /home/docker/code/.git
+run git clone https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages
 # installs and then removes build-essential to save space
 run apt-get install -y build-essential && easy_install pip && pip install uwsgi && pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
-run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phage.pth
+run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phamdb.pth
 
 # symlink conserved domain database
 run ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
