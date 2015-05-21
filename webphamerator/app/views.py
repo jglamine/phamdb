@@ -1,9 +1,8 @@
-from flask import render_template, abort, request, url_for, redirect, send_from_directory, send_file, session
+from flask import render_template, abort, request, url_for, redirect, send_from_directory, make_response, session
 from webphamerator.app import app, db, models, celery, auth
 import pham.db
 import os
-import tempfile
-from contextlib import closing
+import StringIO
 
 def get_navbar(active_url, ignore_done=False):
     queued_and_running = (db.session.query(models.Job)
@@ -179,19 +178,19 @@ def download_genbank_file(db_id, phage_id):
 
     # export genbank file
     server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
-    with tempfile.NamedTemporaryFile(delete=False, prefix='phage-download-') as file_handle:
-        filename = file_handle.name
-        try:
-            phage = pham.db.export_to_genbank(server, db_record.mysql_name(),
-                                              phage_id,
-                                              file_handle)
-        except pham.db.DatabaseDoesNotExistError as e:
-            return abort(404)
-        except pham.db.PhageNotFoundError as e:
-            return abort(404)
+    handle = StringIO.StringIO()
+    try:
+        phage = pham.db.export_to_genbank(server, db_record.mysql_name(),
+                                          phage_id,
+                                          handle)
+    except pham.db.DatabaseDoesNotExistError as e:
+        return abort(404)
+    except pham.db.PhageNotFoundError as e:
+        return abort(404)
 
-    return send_file(filename, as_attachment=True,
-                     attachment_filename=phage.name + '.gb', cache_timeout=1)
+    response = make_response(handle.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename={}'.format(phage.name + '.gb')
+    return response
 
 @app.route('/jobs', methods=['GET'])
 def jobs():
