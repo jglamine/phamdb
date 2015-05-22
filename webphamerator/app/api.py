@@ -177,6 +177,24 @@ def import_sql_dump():
     db.session.add(database_record)
     db.session.commit()
 
+    # export database dump
+    path = os.path.join(app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
+    # delete old dump
+    try:
+        os.remove(path + '.sql')
+    except OSError:
+        pass
+    try:
+        os.remove(path + '.md5sum')
+    except OSError:
+        pass
+    try:
+        os.remove(path + '.version')
+    except OSError:
+        pass
+
+    pham.db.export(server, database_record.mysql_name(), path + '.sql')
+
     return flask.jsonify(errors=[], database_id=database_record.id), 201
 
 @app.route('/api/database/<int:database_id>', methods=['POST'])
