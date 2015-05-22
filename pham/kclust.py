@@ -59,7 +59,7 @@ class _KClust(object):
         except subprocess32.CalledProcessError as err:
             if err.returncode == -9:
                 # the process ran out of memory
-                raise MemoryError
+                raise MemoryError(err)
             else:
                 raise
 

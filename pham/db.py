@@ -901,7 +901,7 @@ def message_for_callback(code, *args, **kwargs):
         phage_id = args[0]
         message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
     elif code == CallbackCode.out_of_memory_error:
-        message = 'Insufficient memory: This application requires at least 4 GB of RAM.'
+        message = 'Insufficient memory: This application requires at least 2 GB of RAM.'
     return message
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
