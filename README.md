@@ -54,6 +54,14 @@ You can now use PhamDB by visiting your server's IP address with a web browser.
 
   * Dual core processor
 
+### Security
+
+By default, PhamDB does not have any security set up. Anyone on the internet can view, modify, and delete your databases.
+
+#### Set a password
+
+You can add a master password to PhamDB by clicking on `Settings` in the upper right hand corner. Users will need this password in order to use the site.
+
 ## For developers
 
 PhamDB is a Python Flask application. It uses Python 2.7, MySQL and RabbitMQ, and calls several Linux command line programs to process gene data.
