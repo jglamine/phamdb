@@ -17,7 +17,8 @@ run apt-get --no-install-recommends install -y mysql-server libmysqlclient-dev &
 run apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # download source code
-run git clone https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
+# be sure to change the branch to pull the correct version
+run git clone --branch 1.0 https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages
 # installs and then removes build-essential to save space
