@@ -52,6 +52,7 @@ hr.error {
 .select-text {
     border: none;
     cursor: text;
+    width: 100%;
 }
 
 .glyphicon.spinning {
