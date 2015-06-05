@@ -190,35 +190,25 @@ class TestDb(unittest.TestCase):
     def test_duplicate_gene(self):
         server = pham.db.DatabaseServer('localhost', 'root')
 
+        # add two phages with different phage ids
+        filepaths = []
+        filepaths.append(os.path.join(_DATA_DIR, 'Atlantis_DRAFTgb.txt'))
+        filepaths.append(os.path.join(_DATA_DIR, 'Arie_DRAFTgb.txt'))
+        result = pham.db.create(server, _DB_ID,
+                                genbank_files=filepaths,
+                                cdd_search=False,
+                                callback=self.store_callback)
+        self.assertTrue(result, 'create should have returned True. Status:\n' + '\n'.join([str(x) for x in self.callbacks]))
+        self.callbacks = []
+
         # add two phages with auto-generated gene ids
         filepaths = []
         filepaths.append(os.path.join(_DATA_DIR, 'Filichino-small.gb'))
         filepaths.append(os.path.join(_DATA_DIR, 'Filichino-small-2.gb'))
-        result = pham.db.create(server, _DB_ID,
+        result = pham.db.create(server, _DB_ID_2,
                                 genbank_files=filepaths,
                                 cdd_search=False)
         self.assertTrue(result, 'create should have returned True')
-
-        # add two phages with the same gene id
-        pham.db.create(server, _DB_ID_2)
-        filepaths = []
-        filepaths.append(os.path.join(_DATA_DIR, 'Anaya.gb'))
-        filepaths.append(os.path.join(_DATA_DIR, 'Anaya2.gb'))
-        result = pham.db.rebuild(server, _DB_ID_2,
-                                cdd_search=False,
-                                genbank_files_to_add=filepaths,
-                                callback=self.store_callback)
-
-        self.assertFalse(result, 'rebuild should have returned False')
-        with closing(server.get_connection(database=_DB_ID_2)) as cnx:
-            phages = pham.query.list_organisms(cnx)
-        self.assertEqual(len(phages), 0, 'rebuild should not have changed the database')
-        found = False
-        for code, args, kwargs in self.callbacks:
-            if code == pham.db.CallbackCode.gene_id_already_exists:
-                found = True
-                break
-        self.assertTrue(found, 'rebuild should have made a callback with `gene_id_already_exists`')
 
     def test_delete_during_rebuild(self):
         server = pham.db.DatabaseServer('localhost', 'root')

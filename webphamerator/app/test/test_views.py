@@ -1,5 +1,6 @@
 import unittest
-import os.path
+import os
+import shutil
 from contextlib import closing
 import pham.db
 import pham.query
@@ -17,6 +18,12 @@ class TestViews(unittest.TestCase):
         app.config['DATABASE_DUMP_DIR'] = os.path.join(_DATA_DIR, 'temp_db_dumps')
         app.config['CELERY_ALWAYS_EAGER'] = True
         app.config['CELERY_EAGER_PROPAGATES_EXCEPTIONS'] = True
+
+        if not os.path.exists(app.config['GENBANK_FILE_DIR']):
+            os.makedirs(app.config['GENBANK_FILE_DIR'])
+        if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
+            os.makedirs(app.config['DATABASE_DUMP_DIR'])
+
         self.app = app.test_client()
         self.server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
         db.create_all()
@@ -76,11 +83,8 @@ class TestViews(unittest.TestCase):
 
     def tearDown(self):
         # delete db dump files saved on disk
-        folder = app.config['DATABASE_DUMP_DIR']
-        for filename in os.listdir(folder):
-            path = os.path.join(folder, filename)
-            if os.path.isfile(path):
-                os.unlink(path)
+        shutil.rmtree(app.config['GENBANK_FILE_DIR'])
+        shutil.rmtree(app.config['DATABASE_DUMP_DIR'])
 
         if self.mysql_name is not None:
             pham.db.delete(self.server, self.mysql_name)

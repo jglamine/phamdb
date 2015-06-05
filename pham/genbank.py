@@ -282,9 +282,13 @@ class _PhageReader(object):
         gene_reader.errors = []
 
     def _ensure_unique_gene_ids(self):
-        """Check that all the genes in this phage have unique ids.
+        """Ensure that all the genes in have unique ids and names.
+
+        Prepend the gene id with the phage id.
 
         If a gene does not have an id, generate one.
+        If a gene does not have a name, generate one.
+        If a two genes have the same name, assign new names.
         If two genes have the same id, report an error.
         """
         gene_ids = set()
@@ -294,8 +298,11 @@ class _PhageReader(object):
 
         for index, gene in enumerate(self.genes):
             if gene.gene_id is None:
-                gene.gene_id = 'auto:{}:{}'.format(self.phage_id, id_index)
+                gene.gene_id = 'auto_gp{}'.format(id_index)
                 id_index += 1
+
+            if not gene.gene_id.startswith('{}:'.format(self.phage_id)):
+                gene.gene_id = '{}:{}'.format(self.phage_id, gene.gene_id)
 
             if gene.gene_id in gene_ids:
                 self._add_error(ErrorCode.duplicate_gene_id,
@@ -303,11 +310,12 @@ class _PhageReader(object):
                                 line_number=gene.line,
                                 )
             gene_ids.add(gene.gene_id)
+
             if gene.gene_name is None or gene.gene_name in gene_names:
                 name_index = max(index + 1, name_index)
-                while 'auto_gp{}'.format(name_index) in gene_names:
+                while '{}'.format(name_index) in gene_names:
                     name_index += 1
-                gene.gene_name = 'auto_gp{}'.format(name_index)
+                gene.gene_name = '{}'.format(name_index)
                 gene_names.add(gene.gene_name)
                 name_index += 1
             gene_names.add(gene.gene_name)

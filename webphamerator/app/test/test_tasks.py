@@ -1,5 +1,6 @@
 import unittest
-import os.path
+import os
+import shutil
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
@@ -18,6 +19,11 @@ class TestDatabaseTasks(unittest.TestCase):
         app.config['DATABASE_DUMP_DIR'] = os.path.join(_DATA_DIR, 'temp_db_dumps')
         app.config['CELERY_ALWAYS_EAGER'] = True
         app.config['CELERY_EAGER_PROPAGATES_EXCEPTIONS'] = True
+
+        if not os.path.exists(app.config['GENBANK_FILE_DIR']):
+            os.makedirs(app.config['GENBANK_FILE_DIR'])
+        if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
+            os.makedirs(app.config['DATABASE_DUMP_DIR'])
 
         self.server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
         self.database_names = ['unit test db 1', 'unit test db 2', 'unit test db 3']
@@ -150,18 +156,9 @@ class TestDatabaseTasks(unittest.TestCase):
         for name in self.database_names:
             pham.db.delete(self.server, Database.mysql_name_for(name))
 
-        # delete genbank files saved on disk
-        folder = app.config['GENBANK_FILE_DIR']
-        for filename in os.listdir(folder):
-            path = os.path.join(folder, filename)
-            if os.path.isfile(path):
-                os.unlink(path)
-
-        # delete database dumps
-        for filename in os.listdir(folder):
-            path = os.path.join(folder, filename)
-            if os.path.isfile(path):
-                os.unlink(path)
+        # delete temporary genbank files and database dumps saved on disk
+        shutil.rmtree(app.config['GENBANK_FILE_DIR'])
+        shutil.rmtree(app.config['DATABASE_DUMP_DIR'])
 
         db.session.remove()
         db.drop_all()

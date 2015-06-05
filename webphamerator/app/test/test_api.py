@@ -1,5 +1,5 @@
 import unittest
-import os.path
+import os
 import datetime
 import shutil
 
@@ -18,6 +18,10 @@ class TestAddGenbankFile(unittest.TestCase):
         app.config['GENBANK_FILE_DIR'] = os.path.join(_DATA_DIR, 'temp_genbank')
         app.config['CELERY_ALWAYS_EAGER'] = True
         app.config['CELERY_EAGER_PROPAGATES_EXCEPTIONS'] = True
+
+        if not os.path.exists(app.config['GENBANK_FILE_DIR']):
+            os.makedirs(app.config['GENBANK_FILE_DIR'])
+
         self.app = app.test_client()
         self.server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
         self.database_names = ['unit test db 1', 'unit test db 2', 'unit test db 3']
@@ -406,11 +410,7 @@ class TestAddGenbankFile(unittest.TestCase):
             pham.db.delete(self.server, Database.mysql_name_for(name))
 
         # delete genbank files saved on disk
-        folder = app.config['GENBANK_FILE_DIR']
-        for filename in os.listdir(folder):
-            path = os.path.join(folder, filename)
-            if os.path.isfile(path):
-                os.unlink(path)
+        shutil.rmtree(app.config['GENBANK_FILE_DIR'])
 
         db.session.remove()
         db.drop_all()
