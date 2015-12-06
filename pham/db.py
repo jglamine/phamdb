@@ -392,9 +392,19 @@ def load(server, id, filepath):
         with closing(server.get_connection(database=id)) as cnx:
             with closing(cnx.cursor()) as cursor:
                 try:
-                    _execute_sql_file(cursor, filepath)
-                except DatabaseError:
+                    host, user, password = server.get_credentials()
+                    command = ['mysql', '--host', host, '--user', user]
+                    if password != '' and password is not None:
+                        command += ['--password', password]
+                    command.append(id)
+
+                    with open(filepath, 'r') as stdin:
+                        with open(os.devnull, 'wb') as DEVNULL:
+                            subprocess32.check_call(command, stdin=stdin, stdout=DEVNULL, stderr=DEVNULL)
+
+                except subprocess32.CalledProcessError:
                     raise ValueError('File does not contain valid SQL.')
+
             if not _is_schema_valid(cnx):
                 raise ValueError('Invalid database schema.')
             _update_schema(cnx)

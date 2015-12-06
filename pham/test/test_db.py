@@ -52,20 +52,27 @@ class TestDb(unittest.TestCase):
         self.assertEqual(len(phage.genes), len(phage2.genes))
         self.assertEqual(phage.id, phage2.id)
 
-    def test_load(self):
-        server = pham.db.DatabaseServer('localhost', 'root')
-        sql_dump = os.path.join(_DATA_DIR, 'anaya-with-cdd.sql')
-        pham.db.load(server, _DB_ID, sql_dump)
+        def test_load(self):
+            sql_dump = os.path.join(_DATA_DIR, 'anaya-with-cdd.sql')
+            self._load(sql_dump)
 
-        with closing(server.get_connection(database=_DB_ID)) as cnx:
-            with closing(cnx.cursor()) as cursor:
-                cursor.execute('''
-                               SELECT COUNT(delete_rule)
-                               FROM information_schema.referential_constraints
-                               WHERE constraint_schema IN (SELECT database())
-                                AND delete_rule = 'CASCADE'
-                               ''')
-                self.assertEqual(cursor.fetchall()[0][0], 6)
+        def test_load_old_schema(self):
+            sql_dump = os.path.join(_DATA_DIR, 'Jumbo.sql')
+            self._load(sql_dump)
+
+        def _load(self, filepath):
+            server = pham.db.DatabaseServer('localhost', 'root')
+            pham.db.load(server, _DB_ID, filepath)
+
+            with closing(server.get_connection(database=_DB_ID)) as cnx:
+                with closing(cnx.cursor()) as cursor:
+                    cursor.execute('''
+                                   SELECT COUNT(delete_rule)
+                                   FROM information_schema.referential_constraints
+                                   WHERE constraint_schema IN (SELECT database())
+                                    AND delete_rule = 'CASCADE'
+                                   ''')
+                    self.assertEqual(cursor.fetchall()[0][0], 6)
 
     def test_create(self):
         server = pham.db.DatabaseServer('localhost', 'root')
