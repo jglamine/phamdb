@@ -114,14 +114,15 @@ class Gene(object):
         self.gc2 = gc2
         self.gc3 = gc3
 
-        if self.gc is None:
-            self.gc = _compute_gc_content(sequence)
-        if self.gc1 is None:
-            self.gc1 = _compute_gc_content_x(sequence, 1)
-        if self.gc2 is None:
-            self.gc2 = _compute_gc_content_x(sequence, 2)
-        if self.gc3 is None:
-            self.gc3 = _compute_gc_content_x(sequence, 3)
+        if sequence is not None:
+            if self.gc is None:
+                self.gc = _compute_gc_content(sequence)
+            if self.gc1 is None:
+                self.gc1 = _compute_gc_content_x(sequence, 1)
+            if self.gc2 is None:
+                self.gc2 = _compute_gc_content_x(sequence, 2)
+            if self.gc3 is None:
+                self.gc3 = _compute_gc_content_x(sequence, 3)
 
     def upload(self, cnx):
         # make sure gene id does not exist
