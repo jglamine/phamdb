@@ -1,5 +1,14 @@
 # PhamDB
-A web application for quickly creating and modifying [Phamerator](http://phagesdb.org/Phamerator/faq/) databases.
+A web application for creating and modifying [Phamerator](http://phagesdb.org/Phamerator/faq/) databases.
+
+## [Get started](https://github.com/jglamine/phamdb/wiki)
+For installation instructions, see [the wiki](https://github.com/jglamine/phamdb/wiki).
+
+## [Help and documentation](https://github.com/jglamine/phamdb/wiki)
+Help and documentation are available on [the wiki](https://github.com/jglamine/phamdb/wiki).
+
+### Support
+PhamDB was created by James Lamine as his computer science senior project. His advisors for this project were Serita Nelesen and Randal DeJong. For support questions, please contact Serita Nelesen - snelesen (at) calvin (dot) edu
 
 ## Features
   
@@ -22,45 +31,23 @@ A web application for quickly creating and modifying [Phamerator](http://phagesd
 #### Analyze your database in Phamerator
 ![Create database](img/screenshot-database.png)
 
-## For users
+## Minimum system requirements
 
-### Installing
+##### Linux
+  
+  * Docker
+  * 2GB of RAM (4GB recommended)
+  * 6GB of hard drive space
 
-PhamDB is distributed as a Docker image. You will need a Linux server with Docker installed.
-
-Use the following commands to download and run PhamDB:
-
-Download the image:
-
-    docker pull jglamine/phamdb:latest
-
-Create a directory to store the database in:
-
-    mkdir /home/<username>/phamdb
-
-Run the server as a daemon, set to start automatically when the server starts.
-
-    docker run -d --restart=always -p=80:80 -v /home/<username>/phamdb:/dockerdata jglamine/phamdb:latest
-
-You can now use PhamDB by visiting your server's IP address with a web browser.
-
-#### Minimum system requirements
-
-  * Linux server with Docker installed
-  * 2GB of RAM
+##### Windows and Mac OSX
+  
+  * Docker toolbox
+  * 4GB of ram
   * 6GB of hard drive space
 
 ##### Recommended
 
   * Dual core processor
-
-### Security
-
-By default, PhamDB does not have any security set up. Anyone on the internet can view, modify, and delete your databases.
-
-#### Set a password
-
-You can add a master password to PhamDB by clicking on `Settings` in the upper right hand corner. Users will need this password in order to use the site.
 
 ## For developers
 
