@@ -96,7 +96,7 @@ def database(db_id):
         percent_orphams = (float(orphams) / float(phams)) * 100
         percent_orphams = round(percent_orphams, 1)
 
-    server_url = request.url_root + 'db'
+    server_url = request.url_root + 'db/'
 
     server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
