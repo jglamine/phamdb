@@ -528,7 +528,7 @@ class GeneReader(object):
             self._add_error(ErrorCode.gene_start_out_of_bounds)
             return
 
-        if self.start_codon not in ['ATG', 'GTG', 'TTG']:
+        if self.start_codon not in ['ATG', 'GTG', 'TTG', 'CTG']:
             self._add_error(ErrorCode.invalid_gene_start_codon)
         if self.stop_codon not in ['TAA', 'TAG', 'TGA']:
             self._add_error(ErrorCode.invalid_gene_stop_codon)
