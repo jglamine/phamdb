@@ -21,7 +21,7 @@ run git clone https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf
 
 # install pip packages
 # installs and then removes build-essential to save space
-run apt-get install -y build-essential && easy_install pip && pip install uwsgi && pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
+run apt-get install -y build-essential python-pip && pip install uwsgi && pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
 run echo "/home/docker/code" > /usr/lib/python2.7/dist-packages/phamdb.pth
