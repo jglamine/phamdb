@@ -4,7 +4,7 @@
 
 FROM chg60/ncbi-cdd:buster
 
-maintainer jglamine@gmail.com
+MAINTAINER chg60@pitt.edu
 
 # install packages
 # split into multiple lines to decrease the size of each image commit because
