@@ -2,7 +2,7 @@
 # A web application for quickly creating and modifying Phamerator databases.
 # github.com/jglamine/phamdb
 
-from jglamine/ncbi-cdd:wheezy
+FROM chg60/ncbi-cdd:buster
 
 maintainer jglamine@gmail.com
 
