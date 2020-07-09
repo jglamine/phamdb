@@ -9,19 +9,19 @@ MAINTAINER chg60@pitt.edu
 # install packages
 # split into multiple lines to decrease the size of each image commit because
 # dockerhub has trouble reliably handling pushes of large images
-RUN apt update && apt install -y git && apt clean && rm -rf /tmp/* /var/tmp/*
-RUN apt --no-install-recommends install -y python3 python3-dev python3-setuptools && apt clean && rm -rf /tmp/* /var/tmp/*
-RUN apt install -y python3-biopython && apt clean && rm -rf /tmp/* /var/tmp/*
-RUN apt install -y nginx supervisor && apt clean && rm -rf /tmp/* /var/tmp/*
-RUN apt --no-install-recommends install -y default-mysql-server default-libmysqlclient-dev && apt clean && rm -rf /tmp/* /var/tmp/*
-RUN apt install -y rabbitmq-server && apt clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get update && apt-get install -y apt-utils git && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get --no-install-recommends install -y python3 python3-dev python3-setuptools && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y python3-biopython && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get --no-install-recommends install -y default-mysql-server default-libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # download source code
 RUN git clone https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages
 # installs and then removes build-essential to save space
-RUN apt install -y build-essential python3-pip && pip install uwsgi && pip install --allow-external mysql-connector-python -r /home/docker/code/requirements.txt && apt purge -y build-essential && apt autoremove -y && apt clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y build-essential python3-pip && pip3 install uwsgi pdm_utils -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
 RUN echo "/home/docker/code" > /usr/lib/python3.7/dist-packages/phamdb.pth
