@@ -12,8 +12,8 @@ MAINTAINER chg60@pitt.edu
 RUN apt-get update && apt-get install -y apt-utils git && apt-get clean && rm -rf /tmp/* /var/tmp/*
 RUN apt-get --no-install-recommends install -y python3 python3-dev python3-setuptools && apt-get clean && rm -rf /tmp/* /var/tmp/*
 RUN apt-get install -y python3-biopython && apt-get clean && rm -rf /tmp/* /var/tmp/*
-RUN apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
 RUN apt-get --no-install-recommends install -y default-mysql-server default-libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
 RUN apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # download source code
