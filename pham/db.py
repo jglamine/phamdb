@@ -25,10 +25,18 @@ from mysql.connector import errorcode
 from contextlib import closing
 from urlparse import urlparse
 from enum import Enum
+
+from pdm_utils.classes.alchemyhandler import AlchemyHandler
+from pdm_utils.pipelines import export_db
+from pdm_utils.pipelines import import_genome
+from pdm_utils.pipelines import phamerate
+from pdm_utils.pipelines import convert_db
+from pdm_utils.pipelines import find_domains
+
+import pham.conserved_domain
 import pham.genbank
 import pham.kclust
 import pham.query
-import pham.conserveddomain
 
 def _default_callback(*args, **kwargs):
     pass
