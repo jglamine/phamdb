@@ -1,107 +1,104 @@
-from contextlib import closing
-import mysql.connector
-from mysql.connector import errorcode
+from sqlalchemy.sql import func
 
-def database_exists(cnx, id):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('SHOW DATABASES LIKE %s', (id, ))
-        if len(cursor.fetchall()) == 0:
-            return False
-        return True
+from pdm_utils.classes.alchemyhandler import AlchemyHandler
+from pdm_utils.functions import mysqldb_basic
+from pdm_utils.functions import querying
 
-def count_phages(cnx):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('SELECT COUNT(*) FROM phage')
-        return cursor.fetchall()[0][0]
+def database_exists(alchemist, database):
+    return database in alchemist.databases
 
-def count_phams(cnx):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-            SELECT count(*)
-            FROM (
-                SELECT 1
-                FROM pham
-                GROUP BY name
-            ) as temp
-                       ''')
-        return cursor.fetchall()[0][0]
+def count_phages(alchemist):
+    phage_obj = alchemist.metadata.tables["phage"]
+    phageid_obj = phage_obj.c.PhageID
 
-def count_orphan_genes(cnx):
+    query = querying.build_count(alchemist.graph, phageid_obj)
+    return mysqldb_basic.scalar(alchemist.engine, query)
+
+def count_phams(alchemist):
+    pham_obj = alchemist.metadata.tables["pham"]
+    phamid_obj = pham_obj.c.PhamID
+
+    query = querying.build_count(alchemist.graph, phamid_obj)
+    return mysqldb_basic.scalar(alchemist.engine, query)
+
+def count_orphan_genes(alchemist):
     """Return the number of phams with only one member.
 
-    These orphan phams are known as orphams.
+    These orphan phams are known as orphams :(.
     """
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-            SELECT count(*)
-            FROM (
-                SELECT 1
-                FROM pham
-                GROUP BY name
-                HAVING count(*) = 1
-            ) as temp
-                       ''')
-        return cursor.fetchall()[0][0]
+    pham_obj = alchemist.metadata.tables["pham"]
+    gene_obj = alchemist.metadata.tables["gene"]
+    phamid_obj = pham_obj.c.PhamID
+    geneid_obj = gene_obj.c.GeneID
 
-def list_organisms(cnx):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute(
-            'SELECT PhageID, Name, SequenceLength, GC, DateLastModified from phage;'
-        )
-        rows = cursor.fetchall()
-    return rows
+    query = querying.build_select(alchemist.graph, phamid_obj, 
+                                                   add_in=geneid_obj)
+    query = query.group_by(phamid_obj)
+    query = query.having(func.count(geneid_obj) == 1)
 
-def count_domains(cnx):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute(
-            'SELECT COUNT(1) FROM gene_domain'
-        )
-        rows = cursor.fetchall()
-    return rows[0][0]
+    return len(querying.first_column(alchemist.engine, query))
+
+def list_organisms(alchemist):
+    phage_obj = alchemist.metadata.tables["phage"]
+    phageid_obj = phage_obj.c.PhageID
+    name_obj = phage_obj.c.Name
+    length_obj = phage_obj.c.Length
+    GC_obj = phage_obj.c.GC
+    dlm_obj = phage_obj.c.DateLastModified
+    
+    columns = [phageid_obj, name_obj, length_obj, GC_obj, dlm_obj]
+
+    query = querying.build_select(alchemist.graph, columns)
+    return querying.execute(alchemist.engine, query, return_dict=False)
+
+def count_domains(alchemist):
+    domain_obj = alchemist.metadata.tables["domain"]
+    domainid_obj = domain_obj.c.DomainID
+
+    query = querying.build_count(alchemist.graph, domainid_obj)
+    return mysqldb_basic.scalar(alchemist.engine, query)
         
-def delete_phage(cnx, phage_id):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-                       DELETE FROM phage
-                       WHERE PhageID = %s
-                       ''', (phage_id,))
+def delete_phage(alchemist, phage_id):
+    phage_map = alchemist.mapper.classes["phage"]
 
-        cursor.execute('''
-                       DELETE FROM domain
-                       WHERE domain.hit_id NOT IN
-                        (SELECT hit_id FROM gene_domain)
-                       ''')
+    phage_entry = alchemist.session.query(phage_map).\
+                                                filter_by(PhageID=phage_id).\
+                                                scalar()
+    
+    if not phage_entry is None:
+        alchemist.session.delete(phage_entry)
 
-def list_genes(cnx, phage_id):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-            SELECT GeneID, PhageID, Name, id
-            FROM gene
-            WHERE gene.PhageID = %s
-            ''',
-            (phage_id,)
-        )
-        rows = cursor.fetchall()
-    return rows
+        try:
+            alchemist.session.commit()
+        except:
+            alchemist.session.rollback()
 
-def phage_exists(cnx, phage_id):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-            SELECT COUNT(PhageID)
-            FROM phage
-            WHERE PhageID = %s
-                       ''', (phage_id,))
-        return cursor.fetchall()[0][0] != 0
+def list_genes(alchemist, phage_id):
+    gene_obj = alchemist.metadata.tables["gene"]
+    geneid_obj = gene_obj.c.GeneID
+    phageid_obj = gene_obj.c.PhageID
+    name_obj = gene_obj.c.Name
+    locus_tag_obj = gene_obj.c.LocusTag
+
+    columns = [geneid_obj, phageid_obj, name_obj, locus_tag_obj]
+
+    query = querying.build_select(alchemist.graph, columns, 
+                                  where=(phageid_obj==phage_id))
+
+    return querying.execute(alchemist.engine, query, return_dict=False)
+
+def phage_exists(alchemist, phage_id):
+    phage_obj = alchemist.metadata.tables["phage"]
+    phageid_obj = phage_obj.c.PhageID
+
+    query = querying.build_count(alchemist.graph, phageid_obj, 
+                                 where=(phageid_obj==phageid))
+
+    return (mysqldb_basic.scalar(alchemist.engine, query) >= 1)
 
 def list_phams(server, id):
+    """What was this supposed to do...?"""
     pass
 
-def version_number(cnx):
-    with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-                       SELECT version
-                       FROM version
-                       LIMIT 1;
-                       ''')
-        row = cursor.fetchone()
-        return row[0]
+def version_number(alchemist):
+    return mysqldb.get_schema_version(alchemist.engine) 
