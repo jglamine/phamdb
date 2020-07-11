@@ -59,10 +59,10 @@ def list_organisms(alchemist):
     return querying.execute(alchemist.engine, query, return_dict=False)
 
 def count_domains(alchemist):
-    domain_obj = alchemist.metadata.tables["domain"]
-    domainid_obj = domain_obj.c.DomainID
+    gene_domain_obj = alchemist.metadata.tables["gene_domain"]
+    gene_domain_id_obj = gene_domain_obj.c.ID
 
-    query = querying.build_count(alchemist.graph, domainid_obj)
+    query = querying.build_count(alchemist.graph, gene_domain_id_obj)
     return mysqldb_basic.scalar(alchemist.engine, query)
         
 def delete_phage(alchemist, phage_id):

@@ -32,12 +32,14 @@ from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import fileio
 from pdm_utils.functions import mysqldb
 from pdm_utils.functions import mysqldb_basic
+from pdm_utils.functions improt querying
 from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import export_db
 from pdm_utils.pipelines import import_genome
 from pdm_utils.pipelines import find_domains
 from pdm_utils.pipelines import get_db
 from pdm_utils.pipelines import phamerate
+from sqlalchemy.sql import func
 
 import pham.conserved_domain
 import pham.genbank
@@ -629,27 +631,31 @@ def _execute_sql_file(alchemist, filepath):
 
 #API DATA RETRIEVAL
 #-----------------------------------------------------------------------------
-def summary(server, id):
-    """Returns a DatabaseSummaryModel with information on the database.
-    """
-    with closing(server.get_connection()) as cnx:
-        if not pham.query.database_exists(cnx, id):
-            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
-
-    with closing(server.get_connection(database=id)) as cnx:
-        phage_count = pham.query.count_phages(cnx)
-        pham_count = pham.query.count_phams(cnx)
-        orpham_count = pham.query.count_orphan_genes(cnx)
-        domain_hits = pham.query.count_domains(cnx)
-
-    return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
-
 class DatabaseSummaryModel(object):
     def __init__(self, organism_count, pham_count, orpham_count, conserved_domain_hit_count):
         self.number_of_organisms = organism_count
         self.number_of_phams = pham_count
         self.number_of_orphams = orpham_count
         self.number_of_conserved_domain_hits = conserved_domain_hit_count
+
+def summary(server, id):
+    """Returns a DatabaseSummaryModel with information on the database.
+    """
+    if not pham.query.database_exists(server.alchemist, id):
+        raise DatabaseDoesNotExistError(f"No such database: {id}")
+
+    phage_count = pham.query.count_phages(server.alchemist)
+    pham_count = pham.query.count_phams(server.alchemist)
+    orpham_count = pham.query.count_orphan_genes(server.alchemist)
+    domain_hits = pham.query.count_domains(server.alchemist)
+
+    return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
+
+class OrganismSummaryModel(object):
+    def __init__(self, name, id, gene_count):
+        self.name = name
+        self.id = id
+        self.genes = gene_count
 
 def list_organisms(server, id):
     """Returns a list of organisms in the database.
@@ -658,31 +664,28 @@ def list_organisms(server, id):
 
     Raises: DatabaseDoesNotExistError
     """
-    with closing(server.get_connection()) as cnx:
-        if not pham.query.database_exists(cnx, id):
-            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+    if not pham.query.database_exists(server.alchemist, id):
+        raise DatabaseDoesNotExistError("No such database: {id}")
+
+    phage_obj = alchemist.metadata.tables["phage"]
+    gene_obj = alchemist.metedata.tables["gene"]
+    phageid_obj = phage_obj.c.PhageID
+    name_obj = phage_obj.c.Name
+    geneid_obj = gene_obj.c.GeneID
+
+    columns = [name_obj, phageid_obj, func.count(geneid_obj)]
+    query = querying.build_select(server.alchemist.graph, columns)
+    query = query.group_by(phageid_obj)
+
+    organism_data = querying.execute(server.alchemist.engine, query)
 
     organisms = []
-    with closing(server.get_connection(database=id)) as cnx:
-        with closing(cnx.cursor()) as cursor:
-            cursor.execute('''
-                SELECT p.PhageID, p.Name, COUNT(*)
-                FROM phage as p
-                JOIN gene as g
-                ON g.PhageID = p.PhageID
-                GROUP BY g.PhageID
-                           ''')
-            for phage_id, name, gene_count in cursor:
-                organisms.append(OrganismSummaryModel(name, phage_id, gene_count))
+    for data_dict in organism_data:
+        organisms.append(OrganismSummaryModel(data_dict["Name"], 
+                                              data_dict["PhageID"], 
+                                              data_dict["Count(GeneID)"])
 
     return organisms
-
-class OrganismSummaryModel(object):
-    def __init__(self, name, id, gene_count):
-        self.name = name
-        self.id = id
-        self.genes = gene_count
-
 
 #REDUNDANT PIPELINE HELPER FUNCTIONS
 #-----------------------------------------------------------------------------
