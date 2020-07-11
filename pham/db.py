@@ -38,9 +38,85 @@ import pham.genbank
 import pham.kclust
 import pham.query
 
+#GLOBAL VARIABLES
+#-----------------------------------------------------------------------------
+_DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
+
+CallbackCode = Enum('status',
+                    'genbank_format_error',
+                    'duplicate_organism',
+                    'duplicate_genbank_files',
+                    'file_does_not_exist',
+                    'gene_id_already_exists',
+                    'out_of_memory_error')
+
+#ERRORS
+#-----------------------------------------------------------------------------
+class DatabaseError(Exception):
+    pass
+
+class InvalidCredentials(DatabaseError):
+    pass
+
+class DatabaseAlreadyExistsError(DatabaseError):
+    pass
+
+class DatabaseDoesNotExistError(DatabaseError):
+    pass
+
+class PhageNotFoundError(DatabaseError):
+    pass
+
+#CALLBACK HANDLERS
+#-----------------------------------------------------------------------------
+class _CallbackObserver(object):
+    def __init__(self):
+        self.calls = []
+
+    def record_call(self, code, *args, **kwargs):
+        self.calls.append((code, args, kwargs))
+
+    def error_messages(self):
+        messages = []
+        genbank_format_errors = 0
+        for code, args, kwargs in self.calls:
+            if code == CallbackCode.genbank_format_error:
+                genbank_format_errors += 1
+            elif code != CallbackCode.status:
+                messages.append(message_for_callback(code, *args, **kwargs))
+
+        if genbank_format_errors:
+            messages.append('{} errors occurred while validating genbank files.'.format(genbank_format_errors))
+        
+        return messages
+
+def message_for_callback(code, *args, **kwargs):
+    """Return a human readable string for callback messages from 'create' and 'rebuild'.
+    """
+    message = None
+    if code == CallbackCode.genbank_format_error:
+        phage_error = args[0]
+        message = 'Error validating genbank file:' + phage_error.message()
+    elif code == CallbackCode.duplicate_organism:
+        phage_id = args[0]
+        message = 'Adding phages resulted in duplicate phage. ID: {}'.format(phage_id)
+    elif code == CallbackCode.duplicate_genbank_files:
+        phage_id = args[0]
+        message = 'The same genbank file occurs twice. Phage ID: {}'.format(phage_id)
+    elif code == CallbackCode.file_does_not_exist:
+        message = 'Unable to find uploaded genbank file.'
+    elif code == CallbackCode.gene_id_already_exists:
+        phage_id = args[0]
+        message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
+    elif code == CallbackCode.out_of_memory_error:
+        message = 'Insufficient memory: This application requires at least 2 GB of RAM.'
+    return message
+
 def _default_callback(*args, **kwargs):
     pass
 
+#MYSQL CONNECTION HANDLER
+#-----------------------------------------------------------------------------
 class DatabaseServer(object):
     """Represents a mysql server.
 
@@ -75,6 +151,10 @@ class DatabaseServer(object):
         config = self._dbconfig.copy()
         config.update(kwargs)
         return mysql.connector.connect(pool_size=self._pool_size, **config)
+
+
+#PROACTIVE DRY-RUN FUNCTIONS
+#-----------------------------------------------------------------------------
 
 def check_create(server, id, genbank_files=None):
     """Check if a call to create() will result in errors.
@@ -132,6 +212,9 @@ def check_rebuild(server, id, organism_ids=None, genbank_files=None):
 
     return success, observer.error_messages()
 
+#PIPELINE FUNCTIONS
+#-----------------------------------------------------------------------------
+#creates new database and IMPORTs
 def create(server, id, genbank_files=None, cdd_search=True, commit=True,
            callback=_default_callback):
     """Create a phamerator database.
@@ -184,6 +267,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
 
     return success
 
+#drops database
 def delete(server, id):
     """Delete a Phamerator database.
     """
@@ -192,6 +276,7 @@ def delete(server, id):
             cursor.execute('DROP DATABASE IF EXISTS {};'.format(id))
         cnx.commit()
 
+#deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
 def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
             cdd_search=True, commit=True, callback=_default_callback):
     """Modify an existing Phamerator database, rebuilding phams.
@@ -375,6 +460,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
 
     return True
 
+#imports whole sql database (GET_DB) and sometimes CONVERT_DB
 def load(server, id, filepath):
     """Load a Phamerator database from an SQL dump.
 
@@ -421,6 +507,7 @@ def load(server, id, filepath):
         delete(server, id)
         raise
 
+#EXPORT sql pipeline
 def export(server, id, filepath):
     """Saves a SQL dump of the database to the given file.
 
@@ -480,6 +567,7 @@ def export(server, id, filepath):
     with open(checksum_filename, 'w') as out_file:
         out_file.write('{}  {}\n'.format(checksum, filepath))
 
+#EXPORT gb pipeline
 def export_to_genbank(server, id, organism_id, filename):
     """Download a phage from the database to the given file or file handle.
 
@@ -500,6 +588,90 @@ def export_to_genbank(server, id, organism_id, filename):
     pham.genbank.write_file(phage, filename)
     return phage
 
+#HELPER FUNCTIONS
+#-----------------------------------------------------------------------------
+class _PhamIdFinder(object):
+    def __init__(self, phams, original_phams):
+        """
+        phams is a dictionary mapping pham_id to a frozenset of gene ids
+        original_phams is a frozenset mapping pham_id to a frozenset of gene ids
+        """
+        # build helper data structures
+        self.original_genes = set()
+        for genes in original_phams.itervalues():
+            self.original_genes.update(genes)
+
+        self.genes = set()
+        for genes in phams.itervalues():
+            self.genes.update(genes)
+
+        self.original_genes_to_pham_id = {}
+        for pham_id, genes in original_phams.iteritems():
+            self.original_genes_to_pham_id[genes] = pham_id
+
+        self.original_gene_to_pham_id = {}
+        for pham_id, genes in original_phams.iteritems():
+            for gene_id in genes:
+                self.original_gene_to_pham_id[gene_id] = pham_id
+
+        self.phams = phams
+        self.original_phams = original_phams
+
+    def find_original_pham_id(self, genes):
+        if genes in self.original_genes_to_pham_id:
+            # pham is identical to original pham
+            # use the old id
+            return self.original_genes_to_pham_id[genes]
+
+        # find the original pham
+        old_genes = genes.intersection(self.original_genes)
+        if len(old_genes) == 0:
+            # this is a new pham with all new genes
+            # assign a new id
+            return
+
+        # check for a join
+        # make sure these genes all come from the same pham
+        original_pham_id = None
+        for gene_id in old_genes:
+            temp_pham_id = self.original_gene_to_pham_id[gene_id]
+            if original_pham_id is None:
+                original_pham_id = temp_pham_id
+            elif original_pham_id != temp_pham_id:
+                # these genes come from different phams
+                # this means that two phams were joined into one
+                # assign a new id
+                return
+
+        # check for a split
+        # make sure none of the missing genes are in another pham
+        original_pham = self.original_phams[original_pham_id]
+        missing_genes = original_pham.difference(genes)
+        if len(missing_genes):
+            for gene in missing_genes:
+                if gene in self.genes:
+                    # a missing gene is in another pham
+                    # this means that the pham was split into two
+                    # assign a new id
+                    return
+
+        # an original pham was modified by adding or removing genes
+        # use the old pham id
+        return original_pham_id
+
+def _execute_sql_file(cursor, filepath):
+    with open(filepath, 'r') as sql_script_file:
+        try:
+            cursors = cursor.execute(sql_script_file.read(), multi=True)
+            for result_cursor in cursors:
+                for row in result_cursor:
+                    pass
+        except mysql.connector.Error as err:
+            raise DatabaseError(err)
+
+
+#API DATA RETRIEVAL
+#-----------------------------------------------------------------------------
 def summary(server, id):
     """Returns a DatabaseSummaryModel with information on the database.
     """
@@ -553,6 +725,11 @@ class OrganismSummaryModel(object):
         self.name = name
         self.id = id
         self.genes = gene_count
+
+
+#REDUNDANT PIPELINE HELPER FUNCTIONS
+#-----------------------------------------------------------------------------
+#Used to set up pipeline like rebuild or load
 
 def _is_schema_valid(cnx):
     """Return True if the databases has the tables required by a Phamerator database.
@@ -758,75 +935,6 @@ def _assign_pham_ids(phams, original_phams):
 
     return final_phams
 
-class _PhamIdFinder(object):
-    def __init__(self, phams, original_phams):
-        """
-        phams is a dictionary mapping pham_id to a frozenset of gene ids
-        original_phams is a frozenset mapping pham_id to a frozenset of gene ids
-        """
-        # build helper data structures
-        self.original_genes = set()
-        for genes in original_phams.itervalues():
-            self.original_genes.update(genes)
-
-        self.genes = set()
-        for genes in phams.itervalues():
-            self.genes.update(genes)
-
-        self.original_genes_to_pham_id = {}
-        for pham_id, genes in original_phams.iteritems():
-            self.original_genes_to_pham_id[genes] = pham_id
-
-        self.original_gene_to_pham_id = {}
-        for pham_id, genes in original_phams.iteritems():
-            for gene_id in genes:
-                self.original_gene_to_pham_id[gene_id] = pham_id
-
-        self.phams = phams
-        self.original_phams = original_phams
-
-    def find_original_pham_id(self, genes):
-        if genes in self.original_genes_to_pham_id:
-            # pham is identical to original pham
-            # use the old id
-            return self.original_genes_to_pham_id[genes]
-
-        # find the original pham
-        old_genes = genes.intersection(self.original_genes)
-        if len(old_genes) == 0:
-            # this is a new pham with all new genes
-            # assign a new id
-            return
-
-        # check for a join
-        # make sure these genes all come from the same pham
-        original_pham_id = None
-        for gene_id in old_genes:
-            temp_pham_id = self.original_gene_to_pham_id[gene_id]
-            if original_pham_id is None:
-                original_pham_id = temp_pham_id
-            elif original_pham_id != temp_pham_id:
-                # these genes come from different phams
-                # this means that two phams were joined into one
-                # assign a new id
-                return
-
-        # check for a split
-        # make sure none of the missing genes are in another pham
-        original_pham = self.original_phams[original_pham_id]
-        missing_genes = original_pham.difference(genes)
-        if len(missing_genes):
-            for gene in missing_genes:
-                if gene in self.genes:
-                    # a missing gene is in another pham
-                    # this means that the pham was split into two
-                    # assign a new id
-                    return
-
-        # an original pham was modified by adding or removing genes
-        # use the old pham id
-        return original_pham_id
-
 def _read_pham_colors(cursor):
     """Return a dictionary mapping pham_id to color
     """
@@ -869,80 +977,5 @@ def _make_color(gene_ids):
     hexcode = '#%02x%02x%02x' % (red * 255, green * 255, blue * 255)
     return hexcode
 
-def _execute_sql_file(cursor, filepath):
-    with open(filepath, 'r') as sql_script_file:
-        try:
-            cursors = cursor.execute(sql_script_file.read(), multi=True)
-            for result_cursor in cursors:
-                for row in result_cursor:
-                    pass
-        except mysql.connector.Error as err:
-            raise DatabaseError(err)
 
-class _CallbackObserver(object):
-    def __init__(self):
-        self.calls = []
 
-    def record_call(self, code, *args, **kwargs):
-        self.calls.append((code, args, kwargs))
-
-    def error_messages(self):
-        messages = []
-        genbank_format_errors = 0
-        for code, args, kwargs in self.calls:
-            if code == CallbackCode.genbank_format_error:
-                genbank_format_errors += 1
-            elif code != CallbackCode.status:
-                messages.append(message_for_callback(code, *args, **kwargs))
-
-        if genbank_format_errors:
-            messages.append('{} errors occurred while validating genbank files.'.format(genbank_format_errors))
-        
-        return messages
-
-def message_for_callback(code, *args, **kwargs):
-    """Return a human readable string for callback messages from 'create' and 'rebuild'.
-    """
-    message = None
-    if code == CallbackCode.genbank_format_error:
-        phage_error = args[0]
-        message = 'Error validating genbank file:' + phage_error.message()
-    elif code == CallbackCode.duplicate_organism:
-        phage_id = args[0]
-        message = 'Adding phages resulted in duplicate phage. ID: {}'.format(phage_id)
-    elif code == CallbackCode.duplicate_genbank_files:
-        phage_id = args[0]
-        message = 'The same genbank file occurs twice. Phage ID: {}'.format(phage_id)
-    elif code == CallbackCode.file_does_not_exist:
-        message = 'Unable to find uploaded genbank file.'
-    elif code == CallbackCode.gene_id_already_exists:
-        phage_id = args[0]
-        message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
-    elif code == CallbackCode.out_of_memory_error:
-        message = 'Insufficient memory: This application requires at least 2 GB of RAM.'
-    return message
-
-_DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
-
-CallbackCode = Enum('status',
-                    'genbank_format_error',
-                    'duplicate_organism',
-                    'duplicate_genbank_files',
-                    'file_does_not_exist',
-                    'gene_id_already_exists',
-                    'out_of_memory_error')
-
-class DatabaseError(Exception):
-    pass
-
-class InvalidCredentials(DatabaseError):
-    pass
-
-class DatabaseAlreadyExistsError(DatabaseError):
-    pass
-
-class DatabaseDoesNotExistError(DatabaseError):
-    pass
-
-class PhageNotFoundError(DatabaseError):
-    pass
