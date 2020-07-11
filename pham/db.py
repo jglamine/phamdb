@@ -265,10 +265,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
 def delete(server, id):
     """Delete a Phamerator database.
     """
-    with closing(server.get_connection()) as cnx:
-        with closing(cnx.cursor()) as cursor:
-            cursor.execute('DROP DATABASE IF EXISTS {};'.format(id))
-        cnx.commit()
+    server.alchemist.engine.execute(f"DROP DATABASE IF EXISTS {id}")
 
 #deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
 def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
