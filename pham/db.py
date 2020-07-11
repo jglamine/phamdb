@@ -15,10 +15,12 @@ The first argument to the callback is an instance of the CallbackCode enum.
 Subsequent arguments are different depending on the CallbackCode used.
 """
 
-import os
-import random
 import colorsys
 import hashlib
+import os
+import random
+import shlex
+import subprocess
 import subprocess32
 import mysql.connector
 from mysql.connector import errorcode
@@ -129,6 +131,8 @@ class DatabaseServer(object):
         kwargs['password'] = password
         self._dbconfig = kwargs
         self._pool_size = pool_size
+        self.alchemist = AlchemyHandler(username=user, password=password)
+        self.alchemist.connect()
 
     @classmethod
     def from_url(cls, url, pool_size=2):
@@ -232,27 +236,18 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     """
     # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
-    with closing(server.get_connection()) as cnx:
-        if pham.query.database_exists(cnx, id):
-            raise DatabaseAlreadyExistsError
+    if pham.query.database_exists(server.alchemist, id):
+        raise DatabaseAlreadyExistsError
 
-        with closing(cnx.cursor()) as cursor:
-            cursor.execute('''
-                           CREATE DATABASE {}
-                           DEFAULT CHARACTER SET 'utf8'
-                           '''.format(id))
-        cnx.commit()
+    server.alchemist.engine.execute(f"CREATE DATABASE {id}")
+    server.alchemist.database = database
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
-    try:
-        # upload the initial database schema
-        with closing(server.get_connection(database=id)) as cnx:
-            cnx.start_transaction()
-            with closing(cnx.cursor()) as cursor:
-                sql_script_path = os.path.join(_DATA_DIR, 'create_database.sql')
-                _execute_sql_file(cursor, sql_script_path)
-            cnx.commit()
 
+
+    sql_script_path = os.path.join(_DATA_DIR, 'create_database.sql')
+    _execute_sql_file(alchemist, sql_script_path)
+    try:
         # insert phages and build phams
         success = rebuild(server, id, None, genbank_files,
                           cdd_search=cdd_search,
@@ -261,7 +256,6 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     except Exception:
         delete(server, id)
         raise
-
     if not success:
         delete(server, id)
 
@@ -659,16 +653,15 @@ class _PhamIdFinder(object):
         # use the old pham id
         return original_pham_id
 
-def _execute_sql_file(cursor, filepath):
-    with open(filepath, 'r') as sql_script_file:
-        try:
-            cursors = cursor.execute(sql_script_file.read(), multi=True)
-            for result_cursor in cursors:
-                for row in result_cursor:
-                    pass
-        except mysql.connector.Error as err:
-            raise DatabaseError(err)
+def _execute_sql_file(alchemist, filepath):
+    file_handle = open(schema_filepath, "r")
+    command_string = f"mysql -u {alchemist.username} -p{alchemist.password}"
+    if alchemist.database:
+        command_string = " ".join([command_string, alchemist.database])
 
+    command_list = shlex.split(command_string)
+    process = subprocess.check_call(command_list, stdin=handle)
+    file_handle.close()
 
 #API DATA RETRIEVAL
 #-----------------------------------------------------------------------------

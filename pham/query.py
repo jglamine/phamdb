@@ -4,8 +4,15 @@ from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import mysqldb_basic
 from pdm_utils.functions import querying
 
+#GLOBAL VARIABLES
+#-----------------------------------------------------------------------------
+EXISTS_QUERY_PREFIX = ("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA "
+                       "WHERE SCHEMA_NAME =")
+
+
 def database_exists(alchemist, database):
-    return database in alchemist.databases
+    query = " ".join([EXISTS_QUERY_PREFIX, f"'{database}'"])
+    return len(mysqldb_basic.scalar(alchemist.engine, query))
 
 def count_phages(alchemist):
     phage_obj = alchemist.metadata.tables["phage"]
