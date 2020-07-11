@@ -29,11 +29,14 @@ from urlparse import urlparse
 from enum import Enum
 
 from pdm_utils.classes.alchemyhandler import AlchemyHandler
+from pdm_utils.functions import fileio
+from pdm_utils.functions import mysqldb_basic
+from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import export_db
 from pdm_utils.pipelines import import_genome
-from pdm_utils.pipelines import phamerate
-from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import find_domains
+from pdm_utils.pipelines import get_db
+from pdm_utils.pipelines import phamerate
 
 import pham.conserved_domain
 import pham.genbank
@@ -489,12 +492,11 @@ def export(server, id, filepath):
     """
     directory = os.path.dirname(filepath)
     base_path = '.'.join(filepath.split('.')[:-1]) # remove extension from filename
-    version_filename = '{}.version'.format(base_path)
-    checksum_filename = '{}.md5sum'.format(base_path)
+    version_filename = f"{base_path}.version"
+    checksum_filename = "{base_path}.md5sum"
 
-    with closing(server.get_connection()) as cnx:
-        if not pham.query.database_exists(cnx, id):
-            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+    if not pham.query.database_exists(server.alchemist, id):
+        raise DatabaseDoesNotExistError(f"No such database {id}.")
 
     if os.path.exists(filepath):
         raise IOError('File already exists: {}'.format(filepath))
@@ -503,40 +505,25 @@ def export(server, id, filepath):
     if os.path.exists(checksum_filename):
         raise IOError('File already exists: {}'.format(checksum_filename))
 
-    if directory != '' and not os.path.exists(directory):
+    if directory != "" and not os.path.exists(directory):
         os.makedirs(directory)
 
-    # export database to sql file using mysqldb command line program
-    host, user, password = server.get_credentials()
-    command = ['mysqldump', '--host', host, '--user', user]
-    if password != '' and password is not None:
-        command += ['--password', password]
-    command.append(id)
-
-    with open(filepath, 'w') as output_file:
-        with open(os.devnull, 'wb') as DEVNULL:
-            subprocess32.check_call(command, stdout=output_file, stderr=DEVNULL)
-
-    # write .version file
-    with closing(server.get_connection(database=id)) as cnx:
-        version_number = pham.query.version_number(cnx)
-
-    with open(version_filename, 'w') as out_file:
-        out_file.write('{}\n'.format(version_number))
+    version = pham.query.version_number(alchemist)
+    fileio.write_database(alchemist, version, filepath)
 
     # calculate checksum
     m = hashlib.md5()
     with open(filepath, 'rb') as sql_file:
         while True:
             data = sql_file.read(8192)
-            if data == '':
+            if data == "":
                 break
             m.update(data)
 
     # write .md5sum file
     checksum = m.hexdigest()
-    with open(checksum_filename, 'w') as out_file:
-        out_file.write('{}  {}\n'.format(checksum, filepath))
+    with open(checksum_filename, "w") as out_file:
+        out_file.write(f"{checksum}  {filepath}\n")
 
 #EXPORT gb pipeline
 def export_to_genbank(server, id, organism_id, filename):

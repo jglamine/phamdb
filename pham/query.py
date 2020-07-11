@@ -108,4 +108,7 @@ def list_phams(server, id):
     pass
 
 def version_number(alchemist):
-    return mysqldb.get_schema_version(alchemist.engine) 
+    db_version = mysql_basic.get_first_row_data(alchemist.engine, "version") 
+
+    #Maybe we want to include this?
+    #return mysqldb.get_schema_version(alchemist.engine) 
