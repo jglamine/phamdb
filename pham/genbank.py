@@ -33,7 +33,7 @@ def write_file(gnm, filepath):
     phage: an instance of `db_object.Phage`.
     filepath: name of the file to write to.
     """
-    seqrecord = flat_files.genome_to_seqrecord(gnm) 
+    seqrecord = flat_files.genome_to_seqrecord(gnm)
     fileio.write_seqrecord([seqrecord], "gb", filepath)
 
 

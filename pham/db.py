@@ -30,6 +30,7 @@ from enum import Enum
 
 from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import fileio
+from pdm_utils.functions import mysqldb
 from pdm_utils.functions import mysqldb_basic
 from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import export_db
@@ -533,18 +534,17 @@ def export_to_genbank(server, id, organism_id, filename):
 
     Raises: PhageNotFoundError, DatabaseDoesNotExistError
     """
-    with closing(server.get_connection()) as cnx:
-        if not pham.query.database_exists(cnx, id):
-            raise DatabaseDoesNotExistError('No such database: {}'.format(id))
+    if not pham.query.database_exists(server.alchemist, id):
+        raise DatabaseDoesNotExistError(f"No such database: {id}")
 
-    with closing(server.get_connection(database=id)) as cnx:
-        try:
-            phage = pham.db_object.Phage.from_database(cnx, organism_id)
-        except pham.db_object.PhageNotFoundError as e:
-            raise PhageNotFoundError
+    if not pham.query.phage_exists(server.alchemist, organism_id):
+        raise PhageNotFoundError
 
-    pham.genbank.write_file(phage, filename)
-    return phage
+    gnm = export_db.get_single_genome(server.alchemist, organism_id,
+                                                        get_features=True)
+    pham.genbank.write_file(gnm, filename)
+
+    return gnm
 
 #HELPER FUNCTIONS
 #-----------------------------------------------------------------------------
