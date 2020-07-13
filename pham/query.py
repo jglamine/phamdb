@@ -4,8 +4,15 @@ from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import mysqldb_basic
 from pdm_utils.functions import querying
 
+#GLOBAL VARIABLES
+#-----------------------------------------------------------------------------
+EXISTS_QUERY_PREFIX = ("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA "
+                       "WHERE SCHEMA_NAME =")
+
+
 def database_exists(alchemist, database):
-    return database in alchemist.databases
+    query = " ".join([EXISTS_QUERY_PREFIX, f"'{database}'"])
+    return len(mysqldb_basic.scalar(alchemist.engine, query))
 
 def count_phages(alchemist):
     phage_obj = alchemist.metadata.tables["phage"]
@@ -52,10 +59,10 @@ def list_organisms(alchemist):
     return querying.execute(alchemist.engine, query, return_dict=False)
 
 def count_domains(alchemist):
-    domain_obj = alchemist.metadata.tables["domain"]
-    domainid_obj = domain_obj.c.DomainID
+    gene_domain_obj = alchemist.metadata.tables["gene_domain"]
+    gene_domain_id_obj = gene_domain_obj.c.ID
 
-    query = querying.build_count(alchemist.graph, domainid_obj)
+    query = querying.build_count(alchemist.graph, gene_domain_id_obj)
     return mysqldb_basic.scalar(alchemist.engine, query)
         
 def delete_phage(alchemist, phage_id):
@@ -101,4 +108,7 @@ def list_phams(server, id):
     pass
 
 def version_number(alchemist):
-    return mysqldb.get_schema_version(alchemist.engine) 
+    db_version = mysql_basic.get_first_row_data(alchemist.engine, "version") 
+
+    #Maybe we want to include this?
+    #return mysqldb.get_schema_version(alchemist.engine) 
