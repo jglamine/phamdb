@@ -21,18 +21,17 @@ import os
 import random
 import shlex
 import subprocess
-import subprocess32
 import mysql.connector
 from mysql.connector import errorcode
 from contextlib import closing
-from urlparse import urlparse
+from urllib import parse
 from enum import Enum
 
 from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import fileio
 from pdm_utils.functions import mysqldb
 from pdm_utils.functions import mysqldb_basic
-from pdm_utils.functions improt querying
+from pdm_utils.functions import querying
 from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import export_db
 from pdm_utils.pipelines import import_genome
@@ -41,10 +40,10 @@ from pdm_utils.pipelines import get_db
 from pdm_utils.pipelines import phamerate
 from sqlalchemy.sql import func
 
-import pham.conserved_domain
-import pham.genbank
-import pham.kclust
-import pham.query
+from pham import conserveddomain
+from pham import genbank
+from pham import mmseqs
+from pham import query
 
 #GLOBAL VARIABLES
 #-----------------------------------------------------------------------------
@@ -142,7 +141,7 @@ class DatabaseServer(object):
 
     @classmethod
     def from_url(cls, url, pool_size=2):
-        result = urlparse(url)
+        result = parse(url)
         return cls(result.hostname, result.username, result.password, pool_size=pool_size)
 
     def get_credentials(self):
@@ -242,7 +241,7 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     """
     # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
-    if pham.query.database_exists(server.alchemist, id):
+    if query.database_exists(server.alchemist, id):
         raise DatabaseAlreadyExistsError
 
     server.alchemist.engine.execute(f"CREATE DATABASE {id}")
@@ -295,7 +294,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
         genbank_files_to_add = []
 
     with closing(server.get_connection()) as cnx:
-        if not pham.query.database_exists(cnx, id):
+        if not query.database_exists(cnx, id):
             raise DatabaseDoesNotExistError('No such database: {}'.format(id))
 
     # open and validate genbank files
@@ -308,11 +307,13 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
         for index, path in enumerate(genbank_files_to_add):
             callback(CallbackCode.status, 'validating genbank files', index, len(genbank_files_to_add))
             try:
-                phage = pham.genbank.read_file(path)
+                phage = genbank.read_file(path)
             except IOError as e:
                 valid = False
                 callback(CallbackCode.file_does_not_exist, path)
                 continue
+
+            #May be redundant, parse genbank records cover??
             if phage.is_valid():
                 # check for duplicate phages
                 if phage.id in phage_id_to_filenames:
@@ -332,7 +333,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
         try:
             # check for phages which are already on the server
             for phage_id in phage_id_to_filenames:
-                if pham.query.phage_exists(cnx, phage_id):
+                if query.phage_exists(cnx, phage_id):
                     if phage_id not in organism_ids_to_delete:
                         duplicate_phage_ids_on_server.add(phage_id)
 
@@ -359,13 +360,13 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
             # delete organisms
             for index, phage_id in enumerate(organism_ids_to_delete):
                 callback(CallbackCode.status, 'deleting organisms', index, len(organism_ids_to_delete))
-                pham.query.delete_phage(cnx, phage_id)
+                query.delete_phage(cnx, phage_id)
 
             # validate and upload genbank files
             if genbank_files_to_add is not None:
                 for index, path in enumerate(genbank_files_to_add):
                     callback(CallbackCode.status, 'uploading organisms', index, len(genbank_files_to_add))
-                    phage = pham.genbank.read_file(path)
+                    phage = genbank.read_file(path)
                     if not phage.is_valid():
                         for error in phage.errors:
                             callback(CallbackCode.genbank_format_error, error)
@@ -404,7 +405,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                     # cluster genes into phams
                     if len(gene_ids):
                         try:
-                            pham_id_to_gene_ids = pham.kclust.cluster(
+                            pham_id_to_gene_ids = mmseqs.cluster(
                                 sequences, gene_ids,
                                 on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
                         except MemoryError as e:
@@ -448,7 +449,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
                 # search for genes in conserved domain database
                 # only search for new genes
-                pham.conserveddomain.find_domains(cnx, new_gene_ids, new_gene_sequences, num_threads=2)
+                conserveddomain.find_domains(cnx, new_gene_ids, new_gene_sequences, num_threads=2)
 
         except Exception:
             cnx.rollback()
@@ -472,7 +473,7 @@ def load(server, id, filepath):
     if not os.path.isfile(filepath):
         raise IOError('No such file: {}'.format(filepath))
 
-    if pham.query.database_exists(server.alchemist, id):
+    if query.database_exists(server.alchemist, id):
         raise DatabaseAlreadyExistsError(f"Database {id} already exists.")
 
     server.alchemist.engine.execute(f"CREATE DATABASE {id}")
@@ -498,7 +499,7 @@ def export(server, id, filepath):
     version_filename = f"{base_path}.version"
     checksum_filename = "{base_path}.md5sum"
 
-    if not pham.query.database_exists(server.alchemist, id):
+    if not query.database_exists(server.alchemist, id):
         raise DatabaseDoesNotExistError(f"No such database {id}.")
 
     if os.path.exists(filepath):
@@ -511,7 +512,7 @@ def export(server, id, filepath):
     if directory != "" and not os.path.exists(directory):
         os.makedirs(directory)
 
-    version = pham.query.version_number(alchemist)
+    version = query.version_number(alchemist)
     fileio.write_database(alchemist, version, filepath)
 
     # calculate checksum
@@ -536,15 +537,15 @@ def export_to_genbank(server, id, organism_id, filename):
 
     Raises: PhageNotFoundError, DatabaseDoesNotExistError
     """
-    if not pham.query.database_exists(server.alchemist, id):
+    if not query.database_exists(server.alchemist, id):
         raise DatabaseDoesNotExistError(f"No such database: {id}")
 
-    if not pham.query.phage_exists(server.alchemist, organism_id):
+    if not query.phage_exists(server.alchemist, organism_id):
         raise PhageNotFoundError
 
     gnm = export_db.get_single_genome(server.alchemist, organism_id,
                                                         get_features=True)
-    pham.genbank.write_file(gnm, filename)
+    genbank.write_file(gnm, filename)
 
     return gnm
 
@@ -641,13 +642,13 @@ class DatabaseSummaryModel(object):
 def summary(server, id):
     """Returns a DatabaseSummaryModel with information on the database.
     """
-    if not pham.query.database_exists(server.alchemist, id):
+    if not query.database_exists(server.alchemist, id):
         raise DatabaseDoesNotExistError(f"No such database: {id}")
 
-    phage_count = pham.query.count_phages(server.alchemist)
-    pham_count = pham.query.count_phams(server.alchemist)
-    orpham_count = pham.query.count_orphan_genes(server.alchemist)
-    domain_hits = pham.query.count_domains(server.alchemist)
+    phage_count = query.count_phages(server.alchemist)
+    pham_count = query.count_phams(server.alchemist)
+    orpham_count = query.count_orphan_genes(server.alchemist)
+    domain_hits = query.count_domains(server.alchemist)
 
     return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
 
@@ -664,7 +665,7 @@ def list_organisms(server, id):
 
     Raises: DatabaseDoesNotExistError
     """
-    if not pham.query.database_exists(server.alchemist, id):
+    if not query.database_exists(server.alchemist, id):
         raise DatabaseDoesNotExistError("No such database: {id}")
 
     phage_obj = alchemist.metadata.tables["phage"]
@@ -683,7 +684,7 @@ def list_organisms(server, id):
     for data_dict in organism_data:
         organisms.append(OrganismSummaryModel(data_dict["Name"], 
                                               data_dict["PhageID"], 
-                                              data_dict["Count(GeneID)"])
+                                              data_dict["Count(GeneID)"]))
 
     return organisms
 

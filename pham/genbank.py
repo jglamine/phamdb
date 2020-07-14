@@ -11,6 +11,7 @@
 #from enum import Enum, EnumValue
 
 #import pham.db_object
+from pathlib import Path
 
 from pdm_utils.functions import fileio
 from pdm_utils.functions import flat_files
@@ -24,6 +25,10 @@ def read_file(filepath):
 
     See `ErrorCode` for a list of the errors which can be detected.
     """
+    filepath = Path(filepath)
+    if not filepath.is_file():
+        raise IOError
+
     seqrecord = flat_files.retrieve_genome_data(filepath)
     return parse_genome_data(seqrecord, filepath=filepath)
 
