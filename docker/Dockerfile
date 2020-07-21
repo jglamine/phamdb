@@ -24,7 +24,7 @@ RUN git clone -b update_dev https://github.com/jglamine/phamdb.git /home/docker/
 RUN apt-get install -y build-essential python3-pip && pip3 install uwsgi pdm_utils -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
-RUN echo "/home/docker/code" > /usr/lib/python3.7/dist-packages/phamdb.pth
+RUN echo "/home/docker/code" > /usr/lib/python3/dist-packages/phamdb.pth
 
 # symlink conserved domain database
 RUN ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
