@@ -1,6 +1,5 @@
 from contextlib import closing
-import mysql.connector
-from mysql.connector import errorcode
+
 
 class Phage(object):
     def __init__(self, phage_id, accension, name, host_strain, isolated,
@@ -91,6 +90,7 @@ class Phage(object):
             gene.phage_id = self.id
             gene.upload(cnx)
 
+
 class Gene(object):
     def __init__(self, gene_id, notes, start, stop, length, sequence, translation,
                start_codon, stop_codon, name, type_id, orientation,
@@ -135,6 +135,7 @@ class Gene(object):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 ''', values)
 
+
 def _compute_gc_content(sequence):
     count = sum((1 for char in sequence if char in ('G', 'C', 'g', 'c')))
     try:
@@ -143,10 +144,11 @@ def _compute_gc_content(sequence):
     except ZeroDivisionError:
         return None
 
+
 def _compute_gc_content_x(sequence, position=1):
     total = 0.0
     gc_count = 0
-    for index in xrange(position - 1, len(sequence), 3):
+    for index in range(position - 1, len(sequence), 3):
         if sequence[index] in ('G', 'C', 'g', 'c'):
             gc_count += 1
         total += 1
@@ -154,6 +156,7 @@ def _compute_gc_content_x(sequence, position=1):
         return 100 * (gc_count / total)
     except ZeroDivisionError:
         return None
+
 
 class PhageNotFoundError(Exception):
     pass

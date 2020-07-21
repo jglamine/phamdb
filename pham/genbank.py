@@ -289,11 +289,6 @@ class _PhageReader(object):
                 prev_gene.right_neighbor_id = gene.gene_id
                 gene.left_neighbor_id = prev_gene.gene_id
 
-        # TODO: Owen, was this loop the original one and needs to be deleted?
-        for index in range(len(self.genes)):
-            if index != 0:
-                self.genes[index]
-
 
 class GenbankLineNumbers(object):
     """Extracts the line number of each feature in a genbank file.
@@ -599,12 +594,13 @@ class PhageError(object):
     def __eq__(self, other):
         if isinstance(other, PhageError):
             return other.code == self.code
-        # TODO: Owen, any idea what this EnumValue is?
+        # TODO: Investigate
         if isinstance(other, EnumValue):
             return other == self.code
         return NotImplemented
 
-# TODO: Owen, any idea what this Enum is?
+
+# TODO: Investigate
 ErrorCode = Enum('no_genes',
                  'no_phage_id',
                  'invalid_genbank_syntax',

@@ -3,6 +3,7 @@
 Databases are designed to be compatible with Phamerator. Therefore, each
 Phamerator database is a separate mysql database running on a mysql server. For
 this reason, each database operation requires the same two arguments:
+
    server - a DatabaseServer object. Used to get connections to the database.
    id - the name of the mysql database.
 
@@ -21,23 +22,17 @@ import os
 import random
 import shlex
 import subprocess
+from contextlib import closing
+from enum import Enum
+from urllib.parse import urlparse
+
 import mysql.connector
 from mysql.connector import errorcode
-from contextlib import closing
-from urllib import parse
-from enum import Enum
-
 from pdm_utils.classes.alchemyhandler import AlchemyHandler
 from pdm_utils.functions import fileio
-from pdm_utils.functions import mysqldb
 from pdm_utils.functions import mysqldb_basic
 from pdm_utils.functions import querying
-from pdm_utils.pipelines import convert_db
 from pdm_utils.pipelines import export_db
-from pdm_utils.pipelines import import_genome
-from pdm_utils.pipelines import find_domains
-from pdm_utils.pipelines import get_db
-from pdm_utils.pipelines import phamerate
 from sqlalchemy.sql import func
 
 from pham import conserveddomain
@@ -45,8 +40,8 @@ from pham import genbank
 from pham import mmseqs
 from pham import query
 
-#GLOBAL VARIABLES
-#-----------------------------------------------------------------------------
+
+# GLOBAL VARIABLES
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
 CallbackCode = Enum('status',
@@ -57,25 +52,29 @@ CallbackCode = Enum('status',
                     'gene_id_already_exists',
                     'out_of_memory_error')
 
-#ERRORS
-#-----------------------------------------------------------------------------
+
+# ERRORS
 class DatabaseError(Exception):
     pass
+
 
 class InvalidCredentials(DatabaseError):
     pass
 
+
 class DatabaseAlreadyExistsError(DatabaseError):
     pass
+
 
 class DatabaseDoesNotExistError(DatabaseError):
     pass
 
+
 class PhageNotFoundError(DatabaseError):
     pass
 
-#CALLBACK HANDLERS
-#-----------------------------------------------------------------------------
+
+# CALLBACK HANDLERS
 class _CallbackObserver(object):
     def __init__(self):
         self.calls = []
@@ -96,6 +95,7 @@ class _CallbackObserver(object):
             messages.append('{} errors occurred while validating genbank files.'.format(genbank_format_errors))
         
         return messages
+
 
 def message_for_callback(code, *args, **kwargs):
     """Return a human readable string for callback messages from 'create' and 'rebuild'.
@@ -119,11 +119,12 @@ def message_for_callback(code, *args, **kwargs):
         message = 'Insufficient memory: This application requires at least 2 GB of RAM.'
     return message
 
+
 def _default_callback(*args, **kwargs):
     pass
 
-#MYSQL CONNECTION HANDLER
-#-----------------------------------------------------------------------------
+
+# MYSQL CONNECTION HANDLER
 class DatabaseServer(object):
     """Represents a mysql server.
 
@@ -141,12 +142,12 @@ class DatabaseServer(object):
 
     @classmethod
     def from_url(cls, url, pool_size=2):
-        result = parse(url)
+        result = urlparse(url)
         return cls(result.hostname, result.username, result.password, pool_size=pool_size)
 
     def get_credentials(self):
         host = self._dbconfig['host']
-        user =  self._dbconfig['user']
+        user = self._dbconfig['user']
         password = self._dbconfig['password']
         return host, user, password
 
@@ -162,10 +163,8 @@ class DatabaseServer(object):
         return mysql.connector.connect(pool_size=self._pool_size, **config)
 
 
-#PROACTIVE DRY-RUN FUNCTIONS
-#-----------------------------------------------------------------------------
-
-def check_create(server, id, genbank_files=None):
+# PROACTIVE DRY-RUN FUNCTIONS
+def check_create(server, identifier, genbank_files=None):
     """Check if a call to create() will result in errors.
 
     This calls create(), but does not commit changes to the database. Use it
@@ -177,23 +176,22 @@ def check_create(server, id, genbank_files=None):
     observer = _CallbackObserver()
 
     try:
-        success = create(server, id,
-                        genbank_files=genbank_files,
-                        cdd_search=False,
-                        callback=observer.record_call,
-                        commit=False)
+        success = create(server, identifier, genbank_files=genbank_files,
+                         cdd_search=False, callback=observer.record_call,
+                         commit=False)
     except DatabaseAlreadyExistsError as e:
-        errors = []
+        errors = list()
         errors.append('Database name is already in use.')
         errors += observer.error_messages()
         return False, errors
     except Exception:
-        delete(server, id)
+        delete(server, identifier)
         raise
 
-    delete(server, id)
+    delete(server, identifier)
 
     return success, observer.error_messages()
+
 
 def check_rebuild(server, id, organism_ids=None, genbank_files=None):
     """Check if a call to rebuild() will result in errors.
@@ -214,17 +212,17 @@ def check_rebuild(server, id, organism_ids=None, genbank_files=None):
                           callback=observer.record_call,
                           commit=False)
     except DatabaseDoesNotExistError as e:
-        errors = []
+        errors = list()
         errors.append('Database does not exist.')
         errors += observer.error_messages()
         return False, errors
 
     return success, observer.error_messages()
 
-#PIPELINE FUNCTIONS
-#-----------------------------------------------------------------------------
-#creates new database and IMPORTs
-def create(server, id, genbank_files=None, cdd_search=True, commit=True,
+
+# PIPELINE FUNCTIONS
+# creates new database and IMPORTs
+def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
            callback=_default_callback):
     """Create a phamerator database.
 
@@ -241,40 +239,42 @@ def create(server, id, genbank_files=None, cdd_search=True, commit=True,
     """
     # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
-    if query.database_exists(server.alchemist, id):
+    if query.database_exists(server.alchemist, identifier):
         raise DatabaseAlreadyExistsError
 
-    server.alchemist.engine.execute(f"CREATE DATABASE {id}")
-    server.alchemist.database = database
+    server.alchemist.engine.execute(f"CREATE DATABASE {identifier}")
+    server.alchemist.database = identifier
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
 
 
     sql_script_path = os.path.join(_DATA_DIR, 'create_database.sql')
-    _execute_sql_file(alchemist, sql_script_path)
+    _execute_sql_file(server.alchemist, sql_script_path)
 
     try:
         # insert phages and build phams
-        success = rebuild(server, id, None, genbank_files,
+        success = rebuild(server, identifier, None, genbank_files,
                           cdd_search=cdd_search,
                           callback=callback,
                           commit=commit)
     except Exception:
-        delete(server, id)
+        delete(server, identifier)
         raise
     if not success:
-        delete(server, id)
+        delete(server, identifier)
 
     return success
 
-#drops database
-def delete(server, id):
+
+# drops database
+def delete(server, identifier):
     """Delete a Phamerator database.
     """
-    server.alchemist.engine.execute(f"DROP DATABASE IF EXISTS {id}")
+    server.alchemist.engine.execute(f"DROP DATABASE IF EXISTS {identifier}")
 
-#deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
-def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
+
+# deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
+def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_add=None,
             cdd_search=True, commit=True, callback=_default_callback):
     """Modify an existing Phamerator database, rebuilding phams.
 
@@ -294,7 +294,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
         genbank_files_to_add = []
 
     with closing(server.get_connection()) as cnx:
-        if not query.database_exists(cnx, id):
+        if not query.database_exists(cnx, identifier):
             raise DatabaseDoesNotExistError('No such database: {}'.format(id))
 
     # open and validate genbank files
@@ -326,7 +326,7 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
                 for error in phage.errors:
                     callback(CallbackCode.genbank_format_error, error)
 
-    with closing(server.get_connection(database=id)) as cnx:
+    with closing(server.get_connection(database=identifier)) as cnx:
         cnx.start_transaction()
 
         callback(CallbackCode.status, 'checking for conflicts', 0, 1)
@@ -459,8 +459,9 @@ def rebuild(server, id, organism_ids_to_delete=None, genbank_files_to_add=None,
 
     return True
 
-#imports whole sql database (GET_DB) and sometimes CONVERT_DB
-def load(server, id, filepath):
+
+# imports whole sql database (GET_DB) and sometimes CONVERT_DB
+def load(server, identifier, filepath):
     """Load a Phamerator database from an SQL dump.
 
     Also migrates to the new schema if needed.
@@ -473,20 +474,21 @@ def load(server, id, filepath):
     if not os.path.isfile(filepath):
         raise IOError('No such file: {}'.format(filepath))
 
-    if query.database_exists(server.alchemist, id):
-        raise DatabaseAlreadyExistsError(f"Database {id} already exists.")
+    if query.database_exists(server.alchemist, identifier):
+        raise DatabaseAlreadyExistsError(f"Database {identifier} already exists.")
 
-    server.alchemist.engine.execute(f"CREATE DATABASE {id}")
-    server.alchemist.database = database   
+    server.alchemist.engine.execute(f"CREATE DATABASE {identifier}")
+    server.alchemist.database = identifier
 
     try:
-        result = mysqldb_basic.install_db(alchemist.engine, filepath)
+        result = mysqldb_basic.install_db(server.alchemist.engine, filepath)
     except:
-        delete(server, id)
+        delete(server, identifier)
         raise
 
-#EXPORT sql pipeline
-def export(server, id, filepath):
+
+# EXPORT sql pipeline
+def export(server, identifier, filepath):
     """Saves a SQL dump of the database to the given file.
 
     Creates three files:
@@ -495,12 +497,12 @@ def export(server, id, filepath):
         <filename>.md5sum
     """
     directory = os.path.dirname(filepath)
-    base_path = '.'.join(filepath.split('.')[:-1]) # remove extension from filename
+    base_path = '.'.join(filepath.split('.')[:-1])  # remove extension from filename
     version_filename = f"{base_path}.version"
     checksum_filename = "{base_path}.md5sum"
 
-    if not query.database_exists(server.alchemist, id):
-        raise DatabaseDoesNotExistError(f"No such database {id}.")
+    if not query.database_exists(server.alchemist, identifier):
+        raise DatabaseDoesNotExistError(f"No such database {identifier}.")
 
     if os.path.exists(filepath):
         raise IOError('File already exists: {}'.format(filepath))
@@ -512,8 +514,8 @@ def export(server, id, filepath):
     if directory != "" and not os.path.exists(directory):
         os.makedirs(directory)
 
-    version = query.version_number(alchemist)
-    fileio.write_database(alchemist, version, filepath)
+    version = query.version_number(server.alchemist)
+    fileio.write_database(server.alchemist, version, filepath)
 
     # calculate checksum
     m = hashlib.md5()
@@ -529,28 +531,29 @@ def export(server, id, filepath):
     with open(checksum_filename, "w") as out_file:
         out_file.write(f"{checksum}  {filepath}\n")
 
-#EXPORT gb pipeline
-def export_to_genbank(server, id, organism_id, filename):
+
+# EXPORT gb pipeline
+def export_to_genbank(server, identifier, organism_id, filename):
     """Download a phage from the database to the given file or file handle.
 
     Returns an instance of `db_object.Phage`.
 
     Raises: PhageNotFoundError, DatabaseDoesNotExistError
     """
-    if not query.database_exists(server.alchemist, id):
-        raise DatabaseDoesNotExistError(f"No such database: {id}")
+    if not query.database_exists(server.alchemist, identifier):
+        raise DatabaseDoesNotExistError(f"No such database: {identifier}")
 
     if not query.phage_exists(server.alchemist, organism_id):
         raise PhageNotFoundError
 
     gnm = export_db.get_single_genome(server.alchemist, organism_id,
-                                                        get_features=True)
+                                      get_features=True)
     genbank.write_file(gnm, filename)
 
     return gnm
 
-#HELPER FUNCTIONS
-#-----------------------------------------------------------------------------
+
+# HELPER FUNCTIONS
 class _PhamIdFinder(object):
     def __init__(self, phams, original_phams):
         """
@@ -620,18 +623,19 @@ class _PhamIdFinder(object):
         # use the old pham id
         return original_pham_id
 
+
 def _execute_sql_file(alchemist, filepath):
-    file_handle = open(schema_filepath, "r")
+    file_handle = open(filepath, "r")
     command_string = f"mysql -u {alchemist.username} -p{alchemist.password}"
     if alchemist.database:
         command_string = " ".join([command_string, alchemist.database])
 
     command_list = shlex.split(command_string)
-    process = subprocess.check_call(command_list, stdin=handle)
+    process = subprocess.check_call(command_list, stdin=file_handle)
     file_handle.close()
 
-#API DATA RETRIEVAL
-#-----------------------------------------------------------------------------
+
+# API DATA RETRIEVAL
 class DatabaseSummaryModel(object):
     def __init__(self, organism_count, pham_count, orpham_count, conserved_domain_hit_count):
         self.number_of_organisms = organism_count
@@ -639,11 +643,12 @@ class DatabaseSummaryModel(object):
         self.number_of_orphams = orpham_count
         self.number_of_conserved_domain_hits = conserved_domain_hit_count
 
-def summary(server, id):
+
+def summary(server, identifier):
     """Returns a DatabaseSummaryModel with information on the database.
     """
-    if not query.database_exists(server.alchemist, id):
-        raise DatabaseDoesNotExistError(f"No such database: {id}")
+    if not query.database_exists(server.alchemist, identifier):
+        raise DatabaseDoesNotExistError(f"No such database: {identifier}")
 
     phage_count = query.count_phages(server.alchemist)
     pham_count = query.count_phams(server.alchemist)
@@ -652,33 +657,35 @@ def summary(server, id):
 
     return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
 
+
 class OrganismSummaryModel(object):
-    def __init__(self, name, id, gene_count):
+    def __init__(self, name, identifier, gene_count):
         self.name = name
-        self.id = id
+        self.id = identifier
         self.genes = gene_count
 
-def list_organisms(server, id):
+
+def list_organisms(server, identifier):
     """Returns a list of organisms in the database.
 
     Each organisms is an instance of OrganismSummaryModel.
 
     Raises: DatabaseDoesNotExistError
     """
-    if not query.database_exists(server.alchemist, id):
+    if not query.database_exists(server.alchemist, identifier):
         raise DatabaseDoesNotExistError("No such database: {id}")
 
-    phage_obj = alchemist.metadata.tables["phage"]
-    gene_obj = alchemist.metedata.tables["gene"]
+    phage_obj = server.alchemist.metadata.tables["phage"]
+    gene_obj = server.alchemist.metedata.tables["gene"]
     phageid_obj = phage_obj.c.PhageID
     name_obj = phage_obj.c.Name
     geneid_obj = gene_obj.c.GeneID
 
     columns = [name_obj, phageid_obj, func.count(geneid_obj)]
-    query = querying.build_select(server.alchemist.graph, columns)
-    query = query.group_by(phageid_obj)
+    q = querying.build_select(server.alchemist.graph, columns)
+    q = q.group_by(phageid_obj)
 
-    organism_data = querying.execute(server.alchemist.engine, query)
+    organism_data = querying.execute(server.alchemist.engine, q)
 
     organisms = []
     for data_dict in organism_data:
@@ -688,10 +695,9 @@ def list_organisms(server, id):
 
     return organisms
 
-#REDUNDANT PIPELINE HELPER FUNCTIONS
-#-----------------------------------------------------------------------------
-#Used to set up pipeline like rebuild or load
 
+# REDUNDANT PIPELINE HELPER FUNCTIONS
+# Used to set up pipeline like rebuild or load
 def _is_schema_valid(cnx):
     """Return True if the databases has the tables required by a Phamerator database.
 
@@ -715,6 +721,7 @@ def _is_schema_valid(cnx):
         tables_found = cursor.fetchall()[0][0]
 
     return tables_found == 6
+
 
 def _update_schema(cnx):
     """Migrate databases from the old Phamerator schema.
@@ -817,6 +824,7 @@ def _update_schema(cnx):
             ''')
     cnx.commit()
 
+
 def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table, other_feild):
     """Replace a foreign key constraint with one which specifies to cascade
     on delete and update.
@@ -830,6 +838,7 @@ def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table
                    ON DELETE CASCADE
                    '''.format(this_table, constraint, this_feild, other_table, other_feild))
 
+
 def _drop_foreign_key(cursor, table, constraint):
     try:
         cursor.execute('ALTER TABLE {} DROP FOREIGN KEY {}'.format(table, constraint))
@@ -840,12 +849,11 @@ def _drop_foreign_key(cursor, table, constraint):
         else:
             raise
 
+
 def _increment_version(cnx):
     with closing(cnx.cursor()) as cursor:
-        cursor.execute('''
-                       UPDATE version
-                       SET version=version+1
-                       ''')
+        cursor.execute("UPDATE version SET version=version+1")
+
 
 def _read_phams(cursor):
     """Reads phams from the database.
@@ -853,16 +861,14 @@ def _read_phams(cursor):
     Returns a dictionary mapping pham_id to a set of gene ids.
     """
     phams = {}
-    cursor.execute('''
-        SELECT name, GeneID
-        FROM pham
-                   ''')
+    cursor.execute("SELECT PhamID, GeneID FROM gene")
     for pham_id, gene_id in cursor:
         if pham_id not in phams:
             phams[pham_id] = set()
         phams[pham_id].add(gene_id)
 
     return phams
+
 
 def _assign_pham_ids(phams, original_phams):
     """Re-assigns pham ids to match the original pham ids.
@@ -896,17 +902,16 @@ def _assign_pham_ids(phams, original_phams):
 
     return final_phams
 
+
 def _read_pham_colors(cursor):
     """Return a dictionary mapping pham_id to color
     """
     pham_colors = {}
-    cursor.execute('''
-        SELECT name, color
-        FROM pham_color
-                   ''')
+    cursor.execute("SELECT PhamID, Color FROM pham")
     for pham_id, color in cursor:
         pham_colors[pham_id] = color
     return pham_colors
+
 
 def _assign_pham_colors(phams, original_colors):
     """Returns a dictionary mapping pham_id to color.
@@ -918,6 +923,7 @@ def _assign_pham_colors(phams, original_colors):
     for pham_id, genes in phams.iteritems():
         pham_colors[pham_id] = original_colors.get(pham_id, _make_color(genes))
     return pham_colors
+
 
 def _make_color(gene_ids):
     """Return a color to use for the given pham.
@@ -937,6 +943,3 @@ def _make_color(gene_ids):
     red, green, blue = colorsys.hsv_to_rgb(hue, sat ,val)
     hexcode = '#%02x%02x%02x' % (red * 255, green * 255, blue * 255)
     return hexcode
-
-
-
