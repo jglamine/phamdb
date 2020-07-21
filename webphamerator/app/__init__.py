@@ -1,19 +1,26 @@
 import os
 from flask import Flask
-from flask.ext.sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
+from webphamerator.app import filters, auth, views, api, models, tasks
 from celery import Celery
 
-def make_celery(app):
-    celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
-    celery.conf.update(app.config)
+
+def make_celery(a):
+    celery = Celery(a.import_name, broker=a.config['CELERY_BROKER_URL'])
+    celery.conf.update(a.config)
     TaskBase = celery.Task
+
     class ContextTask(TaskBase):
         abstract = True
+
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return TaskBase.__call__(self, *args, **kwargs)
+
     celery.Task = ContextTask
+
     return celery
+
 
 app = Flask(__name__)
 
@@ -26,8 +33,6 @@ if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
 
 db = SQLAlchemy(app)
 celery = make_celery(app)
-
-from webphamerator.app import filters, auth, views, api, models, tasks
 
 if not app.debug:
     import logging
