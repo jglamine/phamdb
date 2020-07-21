@@ -1,20 +1,16 @@
-#OLD IMPORTS
-#import re
-
-#from Bio import SeqIO
-#from Bio.Data.CodonTable import TranslationError
-#import Bio.Seq
-#import Bio.SeqRecord
-#import Bio.SeqFeature
-#from Bio.SeqFeature import FeatureLocation, ExactPosition
-#from Bio.Alphabet.IUPAC import IUPACAmbiguousDNA
-#from enum import Enum, EnumValue
-
-#import pham.db_object
+import re
 from pathlib import Path
 
+import Bio.Seq
+import Bio.SeqFeature
+import Bio.SeqRecord
+from Bio import SeqIO
+from Bio.Data.CodonTable import TranslationError
 from pdm_utils.functions import fileio
 from pdm_utils.functions import flat_files
+
+import pham.db_object
+
 
 def read_file(filepath):
     """Reads and validates a genbank file.
@@ -30,7 +26,8 @@ def read_file(filepath):
         raise IOError
 
     seqrecord = flat_files.retrieve_genome_data(filepath)
-    return parse_genome_data(seqrecord, filepath=filepath)
+    return flat_files.parse_genome_data(seqrecord, filepath=filepath)
+
 
 def write_file(gnm, filepath):
     """Writes a phage to a genbank file.
@@ -104,7 +101,9 @@ class _PhageReader(object):
 
         genes = [gene_reader.to_db_object() for gene_reader in self.genes]
 
-        return pham.db_object.Phage(phage_id, accession, name, host_strain, isolation, sequence, notes, genes, self._filename, self.errors)
+        return pham.db_object.Phage(phage_id, accession, name, host_strain,
+                                    isolation, sequence, notes, genes,
+                                    self._filename, self.errors)
 
     def _add_error(self, error, *args, **kwargs):
         line_number = kwargs.get('line_number')
@@ -211,7 +210,8 @@ class _PhageReader(object):
         if self.isolation is None:
             self.isolation = self._read_value(feature, ['isolation_source'])
 
-    def _read_value(self, feature, qualifiers):
+    @staticmethod
+    def _read_value(feature, qualifiers):
         """Read a value from the qualifier of a feature.
 
         Qualifiers is a list of qualifiers to look for. Stop at the first
@@ -289,7 +289,8 @@ class _PhageReader(object):
                 prev_gene.right_neighbor_id = gene.gene_id
                 gene.left_neighbor_id = prev_gene.gene_id
 
-        for index in xrange(len(self.genes)):
+        # TODO: Owen, was this loop the original one and needs to be deleted?
+        for index in range(len(self.genes)):
             if index != 0:
                 self.genes[index]
 
@@ -525,6 +526,7 @@ class GeneReader(object):
                 # mismatch caused by programmed frameshift.
                 self.translation = translation
 
+
 class PhageError(object):
     """A Phage (or gene) validation error.
 
@@ -547,7 +549,7 @@ class PhageError(object):
             return True
 
     def __repr__(self):
-        items = []
+        items = list()
         items.append(self.filename)
         items.append('line: {}'.format(self.line_number))
         items.append('code: {}'.format(self.code))
@@ -597,10 +599,12 @@ class PhageError(object):
     def __eq__(self, other):
         if isinstance(other, PhageError):
             return other.code == self.code
+        # TODO: Owen, any idea what this EnumValue is?
         if isinstance(other, EnumValue):
             return other == self.code
         return NotImplemented
 
+# TODO: Owen, any idea what this Enum is?
 ErrorCode = Enum('no_genes',
                  'no_phage_id',
                  'invalid_genbank_syntax',
