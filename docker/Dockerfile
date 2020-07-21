@@ -17,7 +17,7 @@ RUN apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/t
 RUN apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # download source code
-RUN git clone https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
+RUN git clone -b update_dev https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages
 # installs and then removes build-essential to save space
