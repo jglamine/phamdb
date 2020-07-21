@@ -8,6 +8,7 @@ import flask
 from flask import abort, request
 from webphamerator.app import app, db, models, tasks, filters
 
+
 @app.route('/api/databases', methods=['POST'])
 def new_database():
     """
@@ -34,15 +35,15 @@ def new_database():
     if 'sql_dump_id' in json_data:
         return import_sql_dump()
 
-    if not 'name' in json_data:
+    if 'name' not in json_data:
         return 'Missing property \'name\'.', 412
-    if not 'description' in json_data:
+    if 'description' not in json_data:
         return 'Missing property \'description\'', 412
-    if not 'file_ids' in json_data:
+    if 'file_ids' not in json_data:
         return 'Missing property \'file_ids\'.', 412
-    if not 'cdd_search' in json_data:
+    if 'cdd_search' not in json_data:
         return 'Missing property: \'cdd_search\'.', 412
-    if not 'phages_from_other_databases' in json_data:
+    if 'phages_from_other_databases' not in json_data:
         return 'Missing property: \'phages_from_other_databases\'.', 412
 
     name = json_data.get('name')
@@ -114,6 +115,7 @@ def new_database():
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
 
+
 def import_sql_dump():
     """Create a database from a .sql dump.
 
@@ -122,11 +124,11 @@ def import_sql_dump():
     errors = []
     json_data = request.get_json()
     
-    if not 'name' in json_data:
+    if 'name' not in json_data:
         return 'Missing property \'name\'.', 412
-    if not 'description' in json_data:
+    if 'description' not in json_data:
         return 'Missing property \'description\'', 412
-    if not 'sql_dump_id' in json_data:
+    if 'sql_dump_id' not in json_data:
         return 'Missing property \'sql_dump_id\'.', 412
 
     name = json_data.get('name')
@@ -197,6 +199,7 @@ def import_sql_dump():
 
     return flask.jsonify(errors=[], database_id=database_record.id), 201
 
+
 @app.route('/api/database/<int:database_id>', methods=['POST'])
 def modify_database(database_id):
     """
@@ -219,11 +222,11 @@ def modify_database(database_id):
     errors = []
 
     json_data = request.get_json()
-    if not 'file_ids' in json_data:
+    if 'file_ids' not in json_data:
         return 'Missing property \'file_ids\'.', 412
-    if not 'phages_to_delete' in json_data:
+    if 'phages_to_delete' not in json_data:
         return 'Missing property \'phages_to_delete\'.', 412
-    if not 'phages_from_other_databases' in json_data:
+    if 'phages_from_other_databases' not in json_data:
         return 'Missing property: \'phages_from_other_databases\'.', 412
 
     file_ids = json_data.get('file_ids', [])
@@ -300,6 +303,7 @@ def modify_database(database_id):
     return flask.jsonify(errors=[],
                          job_id=job_id), 200
 
+
 def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
     """Checks uploaded genbank files and exports phages from existing databases.
 
@@ -361,6 +365,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
 
     return file_ids, errors
 
+
 @app.route('/api/database', methods=['GET'])
 def list_databases():
     """
@@ -381,7 +386,7 @@ def list_databases():
         }
     """
     databases = (db.session.query(models.Database)
-                 .filter(models.Database.visible == True)
+                 .filter(models.Database.visible is True)
                  .all())
     database_dictionaries = []
     for database in databases:
@@ -392,6 +397,7 @@ def list_databases():
                                      })
 
     return flask.jsonify(databases=database_dictionaries), 200
+
 
 @app.route('/api/database/<int:database_id>/phages', methods=['GET'])
 def list_phages(database_id):
@@ -417,7 +423,7 @@ def list_phages(database_id):
         500: database error
         404: database does not exist
     """
-    errors = []
+    errors = list()
 
     database_record = (db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
@@ -441,6 +447,7 @@ def list_phages(database_id):
 
     return flask.jsonify(phages=phage_dictionaries), 200
 
+
 @app.route('/api/database-name-taken', methods=['GET'])
 def database_name_taken():
     """
@@ -463,6 +470,7 @@ def database_name_taken():
         return abort(409)
     return '', 200
 
+
 @app.route('/api/genbankfiles/<int:file_id>', methods=['DELETE'])
 def delete_genbank_file(file_id):
     """
@@ -483,6 +491,7 @@ def delete_genbank_file(file_id):
     db.session.delete(file_record)
     db.session.commit()
     return '', 200
+
 
 @app.route('/api/genbankfiles', methods=['POST'])
 def new_genbank_file():
@@ -551,6 +560,7 @@ def new_genbank_file():
     
     return flask.jsonify(phage=phage_data), 201
 
+
 @app.route('/api/file', methods=['POST'])
 def upload_file():
     """Upload a file. Used when importing .sql files.
@@ -583,6 +593,7 @@ def upload_file():
 
     return flask.jsonify(id=local_filename)
 
+
 @app.route('/api/jobs/<int:job_id>', methods=['GET'])
 def job_status(job_id):
     job = db.session.query(models.Job).filter(models.Job.id == job_id).first()
@@ -614,6 +625,7 @@ def job_status(job_id):
                          elapsedTime=elapsed_ms,
                          databaseUrl=database_url
                          ), 200
+
 
 @app.route('/api/jobs/<int:job_id>', methods=['POST'])
 def mark_job_as_seen(job_id):

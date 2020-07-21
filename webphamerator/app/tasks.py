@@ -1,8 +1,8 @@
 import datetime
 import os
 import pham.db
-from contextlib import closing
 from webphamerator.app import app, db, models, celery
+
 
 class CallbackObserver(object):
     def __init__(self, job_id):
@@ -22,6 +22,7 @@ class CallbackObserver(object):
                 job_record.status_message = message
                 job_record.status_code = 'failed'
         db.session.commit()
+
 
 class _BaseDatabaseTask(celery.Task):
     abstract = True
@@ -147,6 +148,7 @@ class _BaseDatabaseTask(celery.Task):
 
         db.session.commit()
 
+
 class CreateDatabase(_BaseDatabaseTask):
     abstract = False
     success_message = 'Database created.'
@@ -164,6 +166,7 @@ class CreateDatabase(_BaseDatabaseTask):
         else:
             job_record.status_message = 'Database already exists.'
         db.session.delete(database_record)
+
 
 class ModifyDatabase(_BaseDatabaseTask):
     abstract = False

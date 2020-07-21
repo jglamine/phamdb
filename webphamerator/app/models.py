@@ -4,6 +4,7 @@ import unicodedata
 from slugify import slugify
 from webphamerator.app import db
 
+
 class Database(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     display_name = db.Column(db.String(255), index=True, unique=True)
@@ -43,6 +44,7 @@ class Database(db.Model):
     def __repr__(self):
         return '<Database {} {}>'.format(self.id, self.display_name)
 
+
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     database_id = db.Column(db.Integer, db.ForeignKey('database.id', ondelete='SET NULL'))
@@ -61,6 +63,7 @@ class Job(db.Model):
     def __repr__(self):
         return '<Job {} "{}"">'.format(self.id, self.status_code)
 
+
 class JobOrganismToDelete(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     organism_id = db.Column(db.String(255))
@@ -68,6 +71,7 @@ class JobOrganismToDelete(db.Model):
 
     def __repr__(self):
         return '<JobOrganismToDelete {} {} {}>'.format(self.id, self.organism_id, self.job_id)
+
 
 class GenbankFile(db.Model):
     """
@@ -86,6 +90,7 @@ class GenbankFile(db.Model):
 
     def __repr__(self):
         return '<GenbankFile {} {}>'.format(self.id, self.name)
+
 
 class Password(db.Model):
     """Stores the password used for authentication.

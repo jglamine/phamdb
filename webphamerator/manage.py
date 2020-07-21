@@ -1,8 +1,6 @@
 from webphamerator.app import app, db
-from flask import Flask
-from flask.ext.sqlalchemy import SQLAlchemy
-from flask.ext.script import Manager
-from flask.ext.migrate import Migrate, MigrateCommand
+from flask_script import Manager
+from flask_migrate import Migrate, MigrateCommand
 
 from webphamerator.app.models import *
 

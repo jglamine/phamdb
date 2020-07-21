@@ -2,10 +2,12 @@ import datetime
 import humanize
 from webphamerator.app import app
 
+
 @app.template_filter('replaceifequal')
 def replaceifequal(arg, value, replace_with):
     if arg == value:
         return replace_with
+
 
 @app.template_filter('humandate')
 def humandate(timestamp):
@@ -21,10 +23,12 @@ def humandate(timestamp):
         return '{} {}'.format(month, day)
     return '{} {}, {}'.format(month, day, year)
 
+
 @app.template_filter('isodate')
 def isodate(date):
     if date is not None:
         return date.isoformat() + 'Z'
+
 
 @app.template_filter('toclocktime')
 def toclocktime(timedelta):
@@ -42,4 +46,3 @@ def toclocktime(timedelta):
         seconds = total_seconds % 60
 
     return '{0:02d}:{1:02d}:{2:02d}'.format(hours, minutes, seconds)
-        
