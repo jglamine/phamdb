@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 from pathlib import Path
 
 import Bio.Seq
@@ -595,22 +596,12 @@ class PhageError(object):
         if isinstance(other, PhageError):
             return other.code == self.code
         # TODO: Investigate
-        if isinstance(other, EnumValue):
+        if isinstance(other, ErrorCode):
             return other == self.code
         return NotImplemented
 
 
-# TODO: Investigate
-ErrorCode = Enum('no_genes',
-                 'no_phage_id',
-                 'invalid_genbank_syntax',
-                 'no_gene_id',
-                 'unknown_gene_orientation',
-                 'invalid_gene_start_codon',
-                 'invalid_gene_stop_codon',
-                 'duplicate_gene_id',
-                 'invalid_gene_sequence',
-                 'gene_stop_out_of_bounds',
-                 'gene_start_out_of_bounds',
-                 'invalid_gene_sequence_length'
-                 )
+ErrorCode = Enum('ErrorCode', 'no_genes no_phage_id invalid_genbank_syntax no_gene_id unknown_gene_orientation '
+                              'invalid_gene_start_codon invalid_gene_stop_codon duplicate_gene_id '
+                              'invalid_gene_sequence gene_stop_out_of_bounds gene_start_out_of_bounds '
+                              'invalid_gene_sequence_length')

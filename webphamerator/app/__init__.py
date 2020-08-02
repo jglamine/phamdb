@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from webphamerator.app import filters, auth, views, api, models, tasks
+# from webphamerator.app import filters, auth, views, api, models, tasks
 from celery import Celery
 
 
