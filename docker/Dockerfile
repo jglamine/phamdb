@@ -7,20 +7,14 @@ FROM chg60/ncbi-cdd:buster
 MAINTAINER chg60@pitt.edu
 
 # install packages
-# split into multiple lines to decrease the size of each image commit because
-# dockerhub has trouble reliably handling pushes of large images
-RUN apt-get update && apt-get install -y apt-utils git && apt-get clean && rm -rf /tmp/* /var/tmp/*
-RUN apt-get --no-install-recommends install -y python3 python3-dev python3-setuptools && apt-get clean && rm -rf /tmp/* /var/tmp/*
-RUN apt-get install -y python3-biopython && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get update && apt-get install -y apt-utils git python3 python3-dev python3-setuptools python3-biopython && apt-get clean && rm -rf /tmp/* /var/tmp/*
 RUN apt-get --no-install-recommends install -y default-mysql-server default-libmysqlclient-dev && apt-get clean && rm -rf /tmp/* /var/tmp/*
-RUN apt-get install -y nginx supervisor && apt-get clean && rm -rf /tmp/* /var/tmp/*
-RUN apt-get install -y rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y nginx supervisor rabbitmq-server && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
-# download source code
+# download phamdb source code
 RUN git clone -b update_dev https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
-# install pip packages
-# installs and then removes build-essential to save space
+# install pip packages - installs and then removes build-essential to save space
 RUN apt-get install -y build-essential python3-pip && pip3 install uwsgi pdm_utils -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
@@ -30,7 +24,7 @@ RUN echo "/home/docker/code" > /usr/lib/python3/dist-packages/phamdb.pth
 RUN ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 # create database
-RUN service mysql start && mysql --user="root" --password="phage" --execute="CREATE DATABASE webphamerate;" && python3 /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
+RUN service mysql start && mysql --user="root" --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY 'phage'; FLUSH PRIVILEGES; CREATE DATABASE webphamerate;" && python3 /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
 
 # edit mysql config file. Change mysql directory to the external volume.
 RUN sed -i "s|var/lib/mysql|dockerdata/mysql|g" etc/mysql/my.cnf
