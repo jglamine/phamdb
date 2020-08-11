@@ -30,7 +30,7 @@ RUN echo "/home/docker/code" > /usr/lib/python3/dist-packages/phamdb.pth
 RUN ln -s /Cdd /home/docker/code/pham/data/conserved-domain-database/Cdd
 
 # create database
-RUN service mysql start && mysql --user="root" --password="password" --execute="CREATE DATABASE webphamerate;" && python3 /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
+RUN service mysql start && mysql --user="root" --password="phage" --execute="CREATE DATABASE webphamerate;" && python3 /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
 
 # edit mysql config file. Change mysql directory to the external volume.
 RUN sed -i "s|var/lib/mysql|dockerdata/mysql|g" etc/mysql/my.cnf
