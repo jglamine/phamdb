@@ -1,2 +1,3 @@
-from webphamerator.app import app
-app.run(debug=True)
+from flask import current_app
+
+current_app.run(debug=True)
