@@ -18,6 +18,7 @@ def create_app():
 
     app.register_blueprint(filters.bp)
     app.register_blueprint(auth.bp)
+    app.register_blueprint(api.bp)
 
     celery = make_celery(app)
 

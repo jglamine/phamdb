@@ -5,11 +5,12 @@ import pham.genbank
 import pham.db
 
 import flask
-from flask import abort, request
-from webphamerator.app import app, db, models, tasks, filters
+from flask import abort, Blueprint, current_app, request
+from webphamerator.flask import models, tasks, filters
 
+bp = Blueprint("api", __name__)
 
-@app.route('/api/databases', methods=['POST'])
+@bp.route('/api/databases', methods=['POST'])
 def new_database():
     """
     expected POST data:
@@ -52,11 +53,11 @@ def new_database():
     file_ids = json_data.get('file_ids', [])
     test = json_data.get('test', False)
 
-    count = db.session.query(models.Database).filter(models.Database.display_name == name).count()
+    count = models.db.session.query(models.Database).filter(models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
-    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
     file_ids, err = _prepare_genbank_files(server, file_ids, phages_from_other_databases)
     errors += err
 
@@ -65,7 +66,7 @@ def new_database():
 
     file_records = []
     if len(file_ids):
-        file_records = (db.session.query(models.GenbankFile)
+        file_records = (models.db.session.query(models.GenbankFile)
                         .filter(models.GenbankFile.id.in_(file_ids))
                         .all())
 
@@ -78,8 +79,8 @@ def new_database():
                                       locked=True,
                                       visible=False,
                                       cdd_search=json_data['cdd_search'])
-    db.session.add(database_record)
-    db.session.commit()
+    models.db.session.add(database_record)
+    models.db.session.commit()
 
     # check database creation transaction for errors
     database_id = database_record.mysql_name()
@@ -87,8 +88,8 @@ def new_database():
                                            genbank_files=genbank_filepaths)
 
     if not success:
-        db.session.delete(database_record)
-        db.session.commit()
+        models.db.session.delete(database_record)
+        models.db.session.commit()
         return flask.jsonify(errors=errors,
                              job_id=None), 400
 
@@ -97,17 +98,17 @@ def new_database():
                             status_message='Waiting to run.',
                             database_name=database_record.display_name,
                             seen=False)
-    db.session.add(job_record)
-    db.session.commit()
+    models.db.session.add(job_record)
+    models.db.session.commit()
     job_id = job_record.id
 
     if len(file_ids):
-        (db.session.query(models.GenbankFile)
+        (models.db.session.query(models.GenbankFile)
             .filter(models.GenbankFile.id.in_(file_ids))
             .update({ models.GenbankFile.job_id: job_record.id },
                     synchronize_session='fetch')
         )
-        db.session.commit()
+        models.db.session.commit()
 
     if not test:
         result = tasks.CreateDatabase().delay(job_id)
@@ -136,7 +137,7 @@ def import_sql_dump():
     filename = json_data.get('sql_dump_id')
     test = json_data.get('test', False)
 
-    count = db.session.query(models.Database).filter(models.Database.display_name == name).count()
+    count = models.db.session.query(models.Database).filter(models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
@@ -147,7 +148,7 @@ def import_sql_dump():
         return flask.jsonify(errors=errors), 400
 
     # create database from sql dump
-    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
     database_id = models.Database.mysql_name_for(name)
 
     try:
@@ -176,11 +177,11 @@ def import_sql_dump():
                                       number_of_orphams=database_summary.number_of_orphams,
                                       number_of_phams=database_summary.number_of_phams,
                                       cdd_search=database_summary.number_of_conserved_domain_hits > 0)
-    db.session.add(database_record)
-    db.session.commit()
+    models.db.session.add(database_record)
+    models.db.session.commit()
 
     # export database dump
-    path = os.path.join(app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
+    path = os.path.join(current_app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
     # delete old dump
     try:
         os.remove(path + '.sql')
@@ -200,7 +201,7 @@ def import_sql_dump():
     return flask.jsonify(errors=[], database_id=database_record.id), 201
 
 
-@app.route('/api/database/<int:database_id>', methods=['POST'])
+@bp.route('/api/database/<int:database_id>', methods=['POST'])
 def modify_database(database_id):
     """
     expected POST data:
@@ -235,7 +236,7 @@ def modify_database(database_id):
     description = json_data.get('description')
     test = json_data.get('test', False)
 
-    database_record = (db.session.query(models.Database)
+    database_record = (models.db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
                        .first())
     if database_record is None:
@@ -243,7 +244,7 @@ def modify_database(database_id):
     elif database_record.locked is True:
         errors.append('This database already has a queued job.')
 
-    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
     file_ids, err = _prepare_genbank_files(server, file_ids, phages_from_other_databases)
     errors += err
 
@@ -252,7 +253,7 @@ def modify_database(database_id):
 
     file_records = []
     if len(file_ids):
-        file_records = (db.session.query(models.GenbankFile)
+        file_records = (models.db.session.query(models.GenbankFile)
                         .filter(models.GenbankFile.id.in_(file_ids))
                         .all())
 
@@ -273,30 +274,30 @@ def modify_database(database_id):
                             status_message='Waiting to run.',
                             database_name=database_record.display_name,
                             seen=False)
-    db.session.add(job_record)
-    db.session.commit()
+    models.db.session.add(job_record)
+    models.db.session.commit()
     job_id = job_record.id
 
     for phage_id in phage_ids:
         record = models.JobOrganismToDelete(organism_id=phage_id,
                                             job_id=job_id)
-        db.session.add(record)
+        models.db.session.add(record)
     if len(phage_ids):
-        db.session.commit()
+        models.db.session.commit()
 
     if len(file_ids):
-        (db.session.query(models.GenbankFile)
+        (models.db.session.query(models.GenbankFile)
             .filter(models.GenbankFile.id.in_(file_ids))
             .update({ models.GenbankFile.job_id: job_id },
                     synchronize_session='fetch')
         )
-        db.session.commit()
+        models.db.session.commit()
 
     if not test:
         if description is not None:
             database_record.description = description
         database_record.locked = True
-        db.session.commit()
+        models.db.session.commit()
         
         result = tasks.ModifyDatabase().delay(job_id)
 
@@ -314,7 +315,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
     """
     errors = []
     if len(file_ids):
-        file_record_count = (db.session.query(models.GenbankFile)
+        file_record_count = (models.db.session.query(models.GenbankFile)
                              .filter(models.GenbankFile.id.in_(file_ids))
                              .count())
         if len(file_ids) != file_record_count:
@@ -326,7 +327,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
             phage_id = phage['id']
             database_id = phage['database']
 
-            db_record = (db.session.query(models.Database)
+            db_record = (models.db.session.query(models.Database)
                          .filter(models.Database.id == database_id)
                          .first())
             if db_record is None:
@@ -334,7 +335,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
                 continue
 
             # export genbank file
-            with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+            with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
                                              delete=False) as local_handle:
                 local_filename = local_handle.name
                 try:
@@ -359,14 +360,14 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
                 for error in phage.errors:
                     errors.append('Line: {} - {}'.format(error.line_number, error.message()))
             else:
-                db.session.add(file_record)
-                db.session.commit()
+                models.db.session.add(file_record)
+                models.db.session.commit()
                 file_ids.append(file_record.id)
 
     return file_ids, errors
 
 
-@app.route('/api/database', methods=['GET'])
+@bp.route('/api/database', methods=['GET'])
 def list_databases():
     """
     expected response data:
@@ -385,7 +386,7 @@ def list_databases():
             ]
         }
     """
-    databases = (db.session.query(models.Database)
+    databases = (models.db.session.query(models.Database)
                  .filter(models.Database.visible is True)
                  .all())
     database_dictionaries = []
@@ -399,7 +400,7 @@ def list_databases():
     return flask.jsonify(databases=database_dictionaries), 200
 
 
-@app.route('/api/database/<int:database_id>/phages', methods=['GET'])
+@bp.route('/api/database/<int:database_id>/phages', methods=['GET'])
 def list_phages(database_id):
     """
     expected response data:
@@ -425,13 +426,13 @@ def list_phages(database_id):
     """
     errors = list()
 
-    database_record = (db.session.query(models.Database)
+    database_record = (models.db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
                        .first())
     if database_record is None:
         return 'Database with id {} not found.'.format(database_id), 404
 
-    server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
     try:
         phages = pham.db.list_organisms(server, database_record.mysql_name())
     except pham.db.DatabaseDoesNotExistError as e:
@@ -448,7 +449,7 @@ def list_phages(database_id):
     return flask.jsonify(phages=phage_dictionaries), 200
 
 
-@app.route('/api/database-name-taken', methods=['GET'])
+@bp.route('/api/database-name-taken', methods=['GET'])
 def database_name_taken():
     """
 
@@ -462,7 +463,7 @@ def database_name_taken():
 
     name_slug = models.Database.phamerator_name_for(name)
 
-    count = (db.session.query(models.Database)
+    count = (models.db.session.query(models.Database)
              .filter(models.Database.name_slug == name_slug)
              .count()
              )
@@ -471,7 +472,7 @@ def database_name_taken():
     return '', 200
 
 
-@app.route('/api/genbankfiles/<int:file_id>', methods=['DELETE'])
+@bp.route('/api/genbankfiles/<int:file_id>', methods=['DELETE'])
 def delete_genbank_file(file_id):
     """
 
@@ -479,7 +480,7 @@ def delete_genbank_file(file_id):
         200: file deleted
         404: file not found
     """
-    file_record = db.session.query(models.GenbankFile).filter(models.GenbankFile.id == file_id).first()
+    file_record = models.db.session.query(models.GenbankFile).filter(models.GenbankFile.id == file_id).first()
     if file_record is None:
         abort(404)
 
@@ -488,12 +489,12 @@ def delete_genbank_file(file_id):
         os.remove(path)
     except OSError:
         pass
-    db.session.delete(file_record)
-    db.session.commit()
+    models.db.session.delete(file_record)
+    models.db.session.commit()
     return '', 200
 
 
-@app.route('/api/genbankfiles', methods=['POST'])
+@bp.route('/api/genbankfiles', methods=['POST'])
 def new_genbank_file():
     """
 
@@ -513,7 +514,7 @@ def new_genbank_file():
     local_filename = None
     try:
         # save it to a file
-        with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+        with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
                                          delete=False) as local_handle:
             local_filename = local_handle.name
             shutil.copyfileobj(file_handle, local_handle)
@@ -546,8 +547,8 @@ def new_genbank_file():
                                      genes=len(phage.genes),
                                      gc_content=phage.gc
                                      )
-    db.session.add(file_record)
-    db.session.commit()
+    models.db.session.add(file_record)
+    models.db.session.commit()
 
     phage_data = {
         'file_id': file_record.id,
@@ -561,7 +562,7 @@ def new_genbank_file():
     return flask.jsonify(phage=phage_data), 201
 
 
-@app.route('/api/file', methods=['POST'])
+@bp.route('/api/file', methods=['POST'])
 def upload_file():
     """Upload a file. Used when importing .sql files.
 
@@ -581,7 +582,7 @@ def upload_file():
     local_filename = None
     try:
         # save it to a file
-        with tempfile.NamedTemporaryFile(dir=app.config['GENBANK_FILE_DIR'],
+        with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
                                          delete=False) as local_handle:
             local_filename = local_handle.name
             shutil.copyfileobj(file_handle, local_handle)
@@ -594,9 +595,9 @@ def upload_file():
     return flask.jsonify(id=local_filename)
 
 
-@app.route('/api/jobs/<int:job_id>', methods=['GET'])
+@bp.route('/api/jobs/<int:job_id>', methods=['GET'])
 def job_status(job_id):
-    job = db.session.query(models.Job).filter(models.Job.id == job_id).first()
+    job = models.db.session.query(models.Job).filter(models.Job.id == job_id).first()
     if job is None:
         abort(404)
 
@@ -610,7 +611,7 @@ def job_status(job_id):
 
     database_url = None
     if job.status_code == 'success':
-        database_record = (db.session.query(models.Database)
+        database_record = (models.db.session.query(models.Database)
                            .filter(models.Database.id == job.database_id)
                            .first()
                            )
@@ -627,13 +628,13 @@ def job_status(job_id):
                          ), 200
 
 
-@app.route('/api/jobs/<int:job_id>', methods=['POST'])
+@bp.route('/api/jobs/<int:job_id>', methods=['POST'])
 def mark_job_as_seen(job_id):
-    job = db.session.query(models.Job).filter(models.Job.id == job_id).first()
+    job = models.db.session.query(models.Job).filter(models.Job.id == job_id).first()
     if job is None:
         abort(404)
 
     job.seen = True
-    db.session.commit()
+    models.db.session.commit()
 
     return '', 200
