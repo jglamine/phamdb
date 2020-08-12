@@ -25,6 +25,25 @@ def build_celery(app):
 
 celery = FlaskCeleryExt(create_celery_app=build_celery)
 
+class CallbackObserver(object):
+    def __init__(self, job_id):
+        self.job_id = job_id
+
+    def handle_call(self, code, *args, **kwargs):
+        job_record = models.db.session.query(models.Job).filter(models.Job.id == self.job_id).first()
+        if code == pham.db.CallbackCode.status:
+            message = args[0]
+            step = args[1]
+            total_steps = args[2]
+            job_record.status_message = '{} ({}/{})'.format(message, step, total_steps)
+        else:
+            # only report the first error
+            if job_record.status_code != 'failed':
+                message = pham.db.message_for_callback(code, *args, **kwargs)
+                job_record.status_message = message
+                job_record.status_code = 'failed'
+        models.db.session.commit()
+
 class CeleryHandler:
     def __init__(self, celery=None):
         self._celery = celery
@@ -33,16 +52,19 @@ class CeleryHandler:
         self._ModifierClass = None
     
     @property
-    def celery(self):
+    def DatabaseCreator(self):
+        if self._CreatorClass is None:
+            self.build_creatormaker()
+
+        return self._CreatorClass()
 
     @property
-    def Creator(self):
-        return self._Creator
+    def DatabaseModifier(self):
+        if self._ModifierClass is None:
+            self.build_modifiermaker()
 
-    @property
-    def Modifier
-        return self._Modifier
-    
+        return self._ModifierClass()
+
     def build_basemaker(self):
         if self._celery is None:
             raise AttributeError("CeleryHandler missing valid Celery object.")
@@ -219,24 +241,6 @@ class CeleryHandler:
 
         self._Modifier = ModifyDatabase
 
-class CallbackObserver(object):
-    def __init__(self, job_id):
-        self.job_id = job_id
-
-    def handle_call(self, code, *args, **kwargs):
-        job_record = models.db.session.query(models.Job).filter(models.Job.id == self.job_id).first()
-        if code == pham.db.CallbackCode.status:
-            message = args[0]
-            step = args[1]
-            total_steps = args[2]
-            job_record.status_message = '{} ({}/{})'.format(message, step, total_steps)
-        else:
-            # only report the first error
-            if job_record.status_code != 'failed':
-                message = pham.db.message_for_callback(code, *args, **kwargs)
-                job_record.status_message = message
-                job_record.status_code = 'failed'
-        models.db.session.commit()
-
+farmer = CeleryHandler(celery=celery)
         
         

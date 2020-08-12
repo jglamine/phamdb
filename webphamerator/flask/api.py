@@ -111,7 +111,7 @@ def new_database():
         models.db.session.commit()
 
     if not test:
-        result = tasks.CreateDatabase().delay(job_id)
+        result = tasks.farmer.DatabaseCreator.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
@@ -299,7 +299,7 @@ def modify_database(database_id):
         database_record.locked = True
         models.db.session.commit()
         
-        result = tasks.ModifyDatabase().delay(job_id)
+        result = tasks.farmer.DatabaseModifier.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200
