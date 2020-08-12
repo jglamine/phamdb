@@ -1,5 +1,5 @@
-from flask import current_app
+#from flask import current_app
 
-if __name__ == '__main__':
-    current_app.run(debug=False)
+#if __name__ == '__main__':
+#    app.run(debug=False)
 

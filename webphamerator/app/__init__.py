@@ -1,6 +1,7 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from webphamerator import manage
 from webphamerator.flask import filters, auth, views, api, models, tasks
 
 def create_app():
@@ -15,6 +16,10 @@ def create_app():
 
     models.db.init_app(app)
     tasks.celery.init_app(app)
+
+    migrate.init_app(app)
+    manage.app = app
+    manager.add_command('db', MigrateCommand)
     
     app.jinja_env.filters["replaceifequal"] = filters.replaceifequal
     app.jinja_env.filters["humandata"] = filters.humandate
