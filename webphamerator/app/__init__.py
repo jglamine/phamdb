@@ -1,5 +1,6 @@
 import os
 from flask import Flask
+from flask_migrate import MigrateCommand
 from flask_sqlalchemy import SQLAlchemy
 from webphamerator import manage
 from webphamerator.flask import filters, auth, views, api, models, tasks
