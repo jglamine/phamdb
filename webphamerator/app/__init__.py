@@ -15,12 +15,12 @@ def create_app():
         os.makedirs(app.config['DATABASE_DUMP_DIR'])
 
     models.db.init_app(app)
+    tasks.celery.init_app(app)
 
     app.register_blueprint(filters.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(api.bp)
 
-    celery = make_celery(app)
 
     if not app.debug:
         import logging

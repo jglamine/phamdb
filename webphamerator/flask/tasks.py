@@ -1,15 +1,19 @@
 import datetime
 import os
-import pham.db
-from webphamerator.app import app, db, models, celery
 
+from flask import current_app
+from flask_celeryext import FlaskCeleryExt
+
+from webphamerator.flask import models
+
+celery = FlaskCeleryExt()
 
 class CallbackObserver(object):
     def __init__(self, job_id):
         self.job_id = job_id
 
     def handle_call(self, code, *args, **kwargs):
-        job_record = db.session.query(models.Job).filter(models.Job.id == self.job_id).first()
+        job_record = models.db.session.query(models.Job).filter(models.Job.id == self.job_id).first()
         if code == pham.db.CallbackCode.status:
             message = args[0]
             step = args[1]
@@ -21,7 +25,7 @@ class CallbackObserver(object):
                 message = pham.db.message_for_callback(code, *args, **kwargs)
                 job_record.status_message = message
                 job_record.status_code = 'failed'
-        db.session.commit()
+        models.db.session.commit()
 
 
 class _BaseDatabaseTask(celery.Task):
@@ -35,7 +39,7 @@ class _BaseDatabaseTask(celery.Task):
     @property
     def server(self):
         if self._server is None:
-            self._server = pham.db.DatabaseServer.from_url(app.config['SQLALCHEMY_DATABASE_URI'])
+            self._server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
         return self._server
 
     def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
@@ -45,12 +49,12 @@ class _BaseDatabaseTask(celery.Task):
         pass
 
     def _get_job(self, job_id):
-        return (db.session.query(models.Job)
+        return (models.db.session.query(models.Job)
                 .filter(models.Job.id == job_id)
                 .first())
 
     def _get_database(self, database_id):
-        return (db.session.query(models.Database)
+        return (models.db.session.query(models.Database)
                 .filter(models.Database.id == database_id)
                 .first())
 
@@ -69,7 +73,7 @@ class _BaseDatabaseTask(celery.Task):
         organism_ids = [r.organism_id for r in job_record.organism_ids_to_delete.all()]
 
         # update job and database with status, status_message, start_time, modified
-        db.session.commit()
+        models.db.session.commit()
 
         observer = CallbackObserver(job_id)
         success = self.database_call(database_record.mysql_name(),
@@ -81,7 +85,7 @@ class _BaseDatabaseTask(celery.Task):
             raise RuntimeError
 
         # export database dump
-        path = os.path.join(app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
+        path = os.path.join(current_app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
         # delete old dump
         try:
             os.remove(path + '.sql')
@@ -106,7 +110,7 @@ class _BaseDatabaseTask(celery.Task):
         if job_record.status_code != 'failed':
             job_record.status_code = 'failed'
             job_record.status_message = 'An unexpected error occurred.'
-        db.session.commit()
+        models.db.session.commit()
 
         self.failure_hook(database_record, job_record, exc)
         self.always(job_record)
@@ -146,7 +150,7 @@ class _BaseDatabaseTask(celery.Task):
                 pass
             file_record.filename = None
 
-        db.session.commit()
+        models.db.session.commit()
 
 
 class CreateDatabase(_BaseDatabaseTask):
@@ -165,7 +169,7 @@ class CreateDatabase(_BaseDatabaseTask):
             pham.db.delete(self.server, database_record.mysql_name())
         else:
             job_record.status_message = 'Database already exists.'
-        db.session.delete(database_record)
+        models.db.session.delete(database_record)
 
 
 class ModifyDatabase(_BaseDatabaseTask):
