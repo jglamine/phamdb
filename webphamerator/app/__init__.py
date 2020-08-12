@@ -2,7 +2,6 @@ import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from webphamerator.flask import filters, auth, views, api, models, tasks
-from celery import Celery
 
 def create_app():
     app = Flask(__name__)
@@ -20,7 +19,7 @@ def create_app():
     app.register_blueprint(filters.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(api.bp)
-
+    app.register_blueprint(views.bp)
 
     if not app.debug:
         import logging
@@ -30,22 +29,3 @@ def create_app():
         app.logger.setLevel(logging.INFO)
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
-
-def build_celery(a):
-    celery = Celery(a.import_name, broker=a.config['CELERY_BROKER_URL'])
-    celery.conf.update(a.config)
-    TaskBase = celery.Task
-
-    class ContextTask(TaskBase):
-        abstract = True
-
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return TaskBase.__call__(self, *args, **kwargs)
-
-    celery.Task = ContextTask
-
-    return celery
-
-
-
