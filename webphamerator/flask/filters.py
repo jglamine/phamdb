@@ -1,15 +1,16 @@
 import datetime
 import humanize
-from webphamerator.app import app
+from flask_sqlalchemy import Blueprint
 
+bp = Blueprint("filters", __name__)
 
-@app.template_filter('replaceifequal')
+@bp.template_filter('replaceifequal')
 def replaceifequal(arg, value, replace_with):
     if arg == value:
         return replace_with
 
 
-@app.template_filter('humandate')
+@bp.template_filter('humandate')
 def humandate(timestamp):
     if datetime.datetime.utcnow() - timestamp < datetime.timedelta(days=1):
         human_delta = humanize.naturaltime(timestamp + (datetime.datetime.now() - datetime.datetime.utcnow()))
@@ -24,13 +25,13 @@ def humandate(timestamp):
     return '{} {}, {}'.format(month, day, year)
 
 
-@app.template_filter('isodate')
+@bp.template_filter('isodate')
 def isodate(date):
     if date is not None:
         return date.isoformat() + 'Z'
 
 
-@app.template_filter('toclocktime')
+@bp.template_filter('toclocktime')
 def toclocktime(timedelta):
     total_seconds = int(timedelta.total_seconds())
     if total_seconds == 0:

@@ -17,6 +17,8 @@ def create_app():
 
     models.db.init_app(app)
 
+    app.register_blueprint(filters.bp)
+
     celery = make_celery(app)
 
     if not app.debug:
