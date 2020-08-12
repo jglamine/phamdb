@@ -15,7 +15,8 @@ def create_app():
     if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
         os.makedirs(app.config['DATABASE_DUMP_DIR'])
 
-    db = SQLAlchemy(app)
+    models.db.init_app(app)
+
     celery = make_celery(app)
 
     if not app.debug:

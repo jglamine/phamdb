@@ -2,8 +2,10 @@ import hashlib
 import datetime
 import unicodedata
 from slugify import slugify
-from webphamerator.app import db
 
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 class Database(db.Model):
     id = db.Column(db.Integer, primary_key=True)
