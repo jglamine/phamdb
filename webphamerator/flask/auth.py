@@ -1,13 +1,14 @@
 import os
 import binascii
-from flask import request, redirect, session
-from webphamerator.app import app, db, models
+from flask import Blueprint, request, redirect, session
+from webphamerator.flask import models
 from backports.pbkdf2 import pbkdf2_hmac, compare_digest
 
 AUTHENTICATION_NOT_NEEDED = ['/signin', '/db', '/static']
 
+bp = Blueprint("auth", __name__)
 
-@app.before_request
+@bp.before_request
 def require_authentication():
     """Require authentication on most routes.
     """
@@ -35,11 +36,11 @@ def set_password(password):
 
     passwords = models.Password.query.all()
     for item in passwords:
-        db.session.delete(item)
+        models.db.session.delete(item)
 
     new_item = models.Password(digest_key=hex_digest, salt=salt)
-    db.session.add(new_item)
-    db.session.commit()
+    models.db.session.add(new_item)
+    models.db.session.commit()
 
     session['authenticated'] = True
 
@@ -47,8 +48,8 @@ def set_password(password):
 def delete_password():
     passwords = models.Password.query.all()
     for item in passwords:
-        db.session.delete(item)
-    db.session.commit()
+        models.db.session.delete(item)
+    models.db.session.commit()
 
     sign_out()
 
@@ -78,7 +79,7 @@ def digest(password, salt):
     return pbkdf2_hmac('sha256', password, salt, 100000)
 
 
-@app.context_processor
+@bp.context_processor
 def template_context():
     return {
         'show_sign_out': show_sign_out_button

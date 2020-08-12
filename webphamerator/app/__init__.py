@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from webphamerator.flask import filters, auth, views, api, models, tasks
 from celery import Celery
 
-
 def create_app():
     app = Flask(__name__)
 
@@ -18,6 +17,7 @@ def create_app():
     models.db.init_app(app)
 
     app.register_blueprint(filters.bp)
+    app.register_blueprint(auth.bp)
 
     celery = make_celery(app)
 
