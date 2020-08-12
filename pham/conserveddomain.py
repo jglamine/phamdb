@@ -3,7 +3,6 @@ import os
 import os.path
 import shutil
 from contextlib import closing
-from itertools import izip
 import mysql.connector
 import mysql.connector.errors
 from mysql.connector import errorcode
@@ -19,7 +18,7 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
         fasta_filename = None
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as fasta_file:
             fasta_filename = fasta_file.name
-            for gene_id, sequence in izip(gene_ids, sequences):
+            for gene_id, sequence in zip(gene_ids, sequences):
                 _write_fasta_record(fasta_file, sequence, gene_id)
 
         output_directory = tempfile.mkdtemp(suffix='-blast')
