@@ -2,8 +2,7 @@ import tempfile
 import os
 import os.path
 import shutil
-from itertools import izip
-import subprocess32
+import subprocess
 
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
@@ -37,14 +36,14 @@ class _KClust(object):
         Exceptions: MemoryError
         """
         self._gene_id_to_sequence = {}
-        for gene_id, sequence in izip(gene_ids, gene_sequences):
+        for gene_id, sequence in zip(gene_ids, gene_sequences):
             self._gene_id_to_sequence[gene_id] = sequence
 
         # build kclust query file
         # run first kclust iteration
         try:
             first_iteration = self._first_iteration(gene_ids)
-        except subprocess32.CalledProcessError as err:
+        except subprocess.CalledProcessError as err:
             if err.returncode == -9:
                 # the process ran out of memory
                 raise MemoryError(err)
@@ -56,7 +55,7 @@ class _KClust(object):
         # run second kClust iteration
         try:
             second_iteration = self._second_iteration(first_iteration)
-        except subprocess32.CalledProcessError as err:
+        except subprocess.CalledProcessError as err:
             if err.returncode == -9:
                 # the process ran out of memory
                 raise MemoryError(err)
@@ -271,5 +270,5 @@ def _call(command):
     """
     args = command.split()
     with open(os.devnull, 'wb') as DEVNULL:
-        code = subprocess32.check_call(args, stdout=DEVNULL, stderr=DEVNULL)
+        code = subprocess.check_call(args, stdout=DEVNULL, stderr=DEVNULL)
     return code

@@ -40,17 +40,18 @@ from pham import genbank
 from pham import mmseqs
 from pham import query
 
-
 # GLOBAL VARIABLES
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
-CallbackCode = Enum('status',
-                    'genbank_format_error',
-                    'duplicate_organism',
-                    'duplicate_genbank_files',
-                    'file_does_not_exist',
-                    'gene_id_already_exists',
-                    'out_of_memory_error')
+
+CallbackCode = Enum("CallbackCode", 
+                                    "status "
+                                    "genbank_format_error "
+                                    "duplicate_organism "
+                                    "duplicate_genbank_files "
+                                    "file_does_not_exist "
+                                    "gene_id_already_exists "
+                                    "out_of_memory_error")
 
 
 # ERRORS
