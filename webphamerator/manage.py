@@ -13,7 +13,7 @@ def build_manager():
     manager = Manager(app=app)
     manager.add_command("db", MigrateCommand)
 
-    return anager
+    return manager
 
 if __name__ == '__main__':
     manager = build_manager()
