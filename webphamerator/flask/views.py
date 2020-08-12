@@ -1,5 +1,5 @@
 from flask import render_template, abort, request, url_for, redirect, send_from_directory, make_response, session, current_app, Blueprint
-from webphamerator.app import models, auth
+from webphamerator.flask import models, auth
 from webphamerator.flask.models import db
 from webphamerator.flask.tasks import celery
 import pham.db
