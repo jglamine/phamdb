@@ -15,8 +15,12 @@ def create_app():
 
     models.db.init_app(app)
     tasks.celery.init_app(app)
+    
+    app.jinja_env.filters["replaceifequal"] = filters.replaceifequal
+    app.jinja_env.filters["humandata"] = filters.humandate
+    app.jinja_env.filters["isodate"] = filters.isodate
+    app.jinja_env.filters["toclocktime"] = filters.isodate
 
-    app.register_blueprint(filters.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(api.bp)
     app.register_blueprint(views.bp)
