@@ -25,6 +25,8 @@ def create_app():
     app.register_blueprint(api.bp)
     app.register_blueprint(views.bp)
 
+    app.context_processor(auth.template_context)
+
     if not app.debug:
         import logging
         from logging.handlers import RotatingFileHandler
