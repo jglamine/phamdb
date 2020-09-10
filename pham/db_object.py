@@ -90,7 +90,6 @@ class Phage(object):
             gene.phage_id = self.id
             gene.upload(cnx)
 
-
 class Gene(object):
     def __init__(self, gene_id, notes, start, stop, length, sequence, translation,
                start_codon, stop_codon, name, type_id, orientation,
@@ -135,7 +134,6 @@ class Gene(object):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 ''', values)
 
-
 def _compute_gc_content(sequence):
     count = sum((1 for char in sequence if char in ('G', 'C', 'g', 'c')))
     try:
@@ -143,7 +141,6 @@ def _compute_gc_content(sequence):
         return 100 * ratio
     except ZeroDivisionError:
         return None
-
 
 def _compute_gc_content_x(sequence, position=1):
     total = 0.0
@@ -156,7 +153,6 @@ def _compute_gc_content_x(sequence, position=1):
         return 100 * (gc_count / total)
     except ZeroDivisionError:
         return None
-
 
 class PhageNotFoundError(Exception):
     pass

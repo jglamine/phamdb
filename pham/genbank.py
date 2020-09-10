@@ -1,14 +1,14 @@
 import re
 from enum import Enum
-from pathlib import Path
 
+
+from Bio.Alphabet.IUPAC import IUPACAmbiguousDNA
 import Bio.Seq
-import Bio.SeqFeature
-import Bio.SeqRecord
 from Bio import SeqIO
+import Bio.SeqFeature
+from Bio.SeqFeature import FeatureLocation, ExactPosition
+import Bio.SeqRecord
 from Bio.Data.CodonTable import TranslationError
-from pdm_utils.functions import fileio
-from pdm_utils.functions import flat_files
 
 import pham.db_object
 
@@ -22,22 +22,74 @@ def read_file(filepath):
 
     See `ErrorCode` for a list of the errors which can be detected.
     """
-    filepath = Path(filepath)
-    if not filepath.is_file():
-        raise IOError
-
-    seqrecord = flat_files.retrieve_genome_data(filepath)
-    return flat_files.parse_genome_data(seqrecord, filepath=filepath)
+    translation_table = 11
+    return _PhageReader(filepath, translation_table).to_db_object()
 
 
-def write_file(gnm, filepath):
+def write_file(phage, filepath):
     """Writes a phage to a genbank file.
 
     phage: an instance of `db_object.Phage`.
     filepath: name of the file to write to.
     """
-    seqrecord = flat_files.genome_to_seqrecord(gnm)
-    fileio.write_seqrecord([seqrecord], "gb", filepath)
+    sequence = Bio.Seq.Seq(str(phage.sequence), IUPACAmbiguousDNA())
+    features = []  # list of SeqFeatures
+
+    # source feature contains metadata about the phage
+    source_feature = Bio.SeqFeature.SeqFeature(
+                    type='source',
+                    location=FeatureLocation(ExactPosition(0),
+                                             ExactPosition(
+                                                phage.sequence_length)),
+                    qualifiers={
+                        'organism': phage.name,
+                        'db_xref': phage.id,
+                        'lab_host': phage.host_strain,
+                        'isolation_source': phage.isolated,
+                        'pham_reader': 'SKIP_GENE_SEQUENCE_VALIDATION'
+                    })
+    features.append(source_feature)
+
+    # each gene is written as a CDS feature
+    for gene in phage.genes:
+        if gene.orientation == 'F':
+            strand = 1
+        elif gene.orientation == 'R':
+            strand = -1
+        else:
+            strand = 0
+
+        qualifiers = {
+            'gene': gene.name,
+            'note': gene.notes,
+            'db_xref': gene.gene_id,
+            'translation': gene.translation
+        }
+
+        if qualifiers['note'] in ('', None):
+            del qualifiers['note']
+
+        feature = Bio.SeqFeature.SeqFeature(
+                    type='CDS',
+                    location=FeatureLocation(ExactPosition(gene.start),
+                                             ExactPosition(gene.stop)),
+                    strand=strand,
+                    qualifiers=qualifiers)
+        features.append(feature)
+
+    annotations = {
+        'organism': 'Mycobacterium phage {}'.format(phage.name),
+        'accessions': [phage.accension],
+        'comment': phage.notes
+    }
+
+    record = Bio.SeqRecord.SeqRecord(sequence,
+                                     id=phage.accension,
+                                     description=phage.name,
+                                     annotations=annotations,
+                                     features=features
+                                     )
+    SeqIO.write([record], filepath, 'genbank')
 
 
 class _PhageReader(object):
@@ -70,7 +122,7 @@ class _PhageReader(object):
             try:
                 # read the entire genbank file
                 self._record = SeqIO.read(genbank_file, 'genbank')
-            except ValueError as err:
+            except ValueError:
                 self._record = None
                 self._add_error(ErrorCode.invalid_genbank_syntax)
             if self._record is not None:
@@ -102,9 +154,9 @@ class _PhageReader(object):
 
         genes = [gene_reader.to_db_object() for gene_reader in self.genes]
 
-        return pham.db_object.Phage(phage_id, accession, name, host_strain,
-                                    isolation, sequence, notes, genes,
-                                    self._filename, self.errors)
+        return pham.db_object.Phage(
+                phage_id, accession, name, host_strain, isolation, sequence,
+                notes, genes, self._filename, self.errors)
 
     def _add_error(self, error, *args, **kwargs):
         line_number = kwargs.get('line_number')
@@ -114,7 +166,8 @@ class _PhageReader(object):
             if error == ErrorCode.invalid_genbank_syntax:
                 line_number = 0
 
-        self.errors.append(PhageError(error, line_number, self._filename, *args))
+        self.errors.append(PhageError(error, line_number, self._filename,
+                                      *args))
 
     def _validate_record(self):
         """Extract and validate phage and gene data.
@@ -161,7 +214,7 @@ class _PhageReader(object):
                 # The `pham_reader` tag is set when exporting phages.
                 # It tells the parser to ignore errors related to
                 # gene sequences, as that data does not survive the
-                # genbank -> phamerator database -> genbank conversion correctly.
+                # genbank->phamerator database->genbank conversion correctly.
                 #
                 # Specifically, CDS locations such as
                 #    join(11244..11654,11654..12097)
@@ -205,14 +258,14 @@ class _PhageReader(object):
         if self.name is None:
             self.name = self.phage_id
 
-        value = self._read_value(feature, ['host', 'lab_host', 'specific_host'])
+        value = self._read_value(feature,
+                                 ['host', 'lab_host', 'specific_host'])
         if value is not None:
             self.host_strain = value
         if self.isolation is None:
             self.isolation = self._read_value(feature, ['isolation_source'])
 
-    @staticmethod
-    def _read_value(feature, qualifiers):
+    def _read_value(self, feature, qualifiers):
         """Read a value from the qualifier of a feature.
 
         Qualifiers is a list of qualifiers to look for. Stop at the first
@@ -229,12 +282,11 @@ class _PhageReader(object):
 
         Gene features are features named 'CDS'.
         """
-        gene_reader = GeneReader(feature,
-                                 self._record.seq,
-                                 self.translation_table,
-                                 self._filename,
-                                 self._line_numbers.line_for('CDS', len(self.genes)),
-                                 validate_gene_sequence=self._validate_gene_sequence)
+        gene_reader = GeneReader(
+                        feature, self._record.seq,
+                        self.translation_table, self._filename,
+                        self._line_numbers.line_for('CDS', len(self.genes)),
+                        validate_gene_sequence=self._validate_gene_sequence)
         self.genes.append(gene_reader)
         self.errors += gene_reader.errors
         gene_reader.errors = []
@@ -289,6 +341,10 @@ class _PhageReader(object):
                 prev_gene = self.genes[index - 1]
                 prev_gene.right_neighbor_id = gene.gene_id
                 gene.left_neighbor_id = prev_gene.gene_id
+
+        for index in range(len(self.genes)):
+            if index != 0:
+                self.genes[index]
 
 
 class GenbankLineNumbers(object):
@@ -354,7 +410,7 @@ class GeneReader(object):
         self.left_neighbor_id = None
         self.right_neighbor_id = None
         self.errors = []
-        
+
         self._feature = feature
         self._gene_sequence = None
         self._translation_table = translation_table
@@ -373,10 +429,11 @@ class GeneReader(object):
         """Convert to a `db_object.Gene` instance.
         """
 
-        return pham.db_object.Gene(self.gene_id, self.notes, self.start, self.stop,
-                    self.length, self._gene_sequence, self.translation, self.start_codon,
-                    self.stop_codon, self.gene_name, self.type_id,
-                    self.orientation, self.left_neighbor_id,
+        return pham.db_object.Gene(
+                    self.gene_id, self.notes, self.start, self.stop,
+                    self.length, self._gene_sequence, self.translation,
+                    self.start_codon, self.stop_codon, self.gene_name,
+                    self.type_id, self.orientation, self.left_neighbor_id,
                     self.right_neighbor_id)
 
     def _read_gene_id(self):
@@ -396,7 +453,7 @@ class GeneReader(object):
     def _add_error(self, error_code, *args):
         line_number = self.line
         args = list(args)
-        
+
         if error_code == ErrorCode.no_gene_id:
             pass
         elif error_code == ErrorCode.unknown_gene_orientation:
@@ -414,7 +471,8 @@ class GeneReader(object):
         elif error_code == ErrorCode.gene_start_out_of_bounds:
             args = [self.start]
 
-        self.errors.append(PhageError(error_code, line_number, self._filename, *args))
+        self.errors.append(PhageError(error_code, line_number, self._filename,
+                                      *args))
 
     def _read_gene_name(self):
         name = None
@@ -472,7 +530,9 @@ class GeneReader(object):
         if self._validate_gene_sequence:
             # The sequence location may be invalid, but the translation,
             # first, and last codons should still be correct.
-            if len(self._gene_sequence) % 3 != 0 or len(self._gene_sequence) == 0:
+            invalid_gene_length = (len(self._gene_sequence) % 3 != 0 or
+                                   len(self._gene_sequence) == 0)
+            if invalid_gene_length:
                 self._add_error(ErrorCode.invalid_gene_sequence_length)
 
         if self.stop > len(sequence):
@@ -488,7 +548,8 @@ class GeneReader(object):
             self._add_error(ErrorCode.invalid_gene_stop_codon)
 
     def _read_translation(self):
-        # use the calculated translation unless there is a programmed frameshift
+        # use the calculated translation unless there is a programmed
+        # frameshift
         translation = None
 
         if 'translation' in self._feature.qualifiers:
@@ -503,11 +564,11 @@ class GeneReader(object):
             return
 
         try:
-            calculated_translation = Bio.Seq.translate(self._gene_sequence,
-                                                       table=self._translation_table,
-                                                       to_stop=True,
-                                                       cds=True)
-        except TranslationError as err:
+            calculated_translation = Bio.Seq.translate(
+                                            self._gene_sequence,
+                                            table=self._translation_table,
+                                            to_stop=True, cds=True)
+        except TranslationError:
             self._add_error(ErrorCode.invalid_gene_sequence)
             # use translation from file
             self.translation = translation
@@ -545,7 +606,7 @@ class PhageError(object):
             return True
 
     def __repr__(self):
-        items = list()
+        items = []
         items.append(self.filename)
         items.append('line: {}'.format(self.line_number))
         items.append('code: {}'.format(self.code))
@@ -562,11 +623,13 @@ class PhageError(object):
         if self.code == ErrorCode.no_genes:
             message = 'Phage does not contain any genes.'
         elif self.code == ErrorCode.no_phage_id:
-            message = 'Could not find an ID for this phage. Add either a \'db_xref\' or \'organism\' qualifier.'
+            message = ("Could not find an ID for this phage. "
+                       "Add either a \'db_xref\' or \'organism\' qualifier.")
         elif self.code == ErrorCode.invalid_genbank_syntax:
             message = 'Not a valid genbank file.'
         elif self.code == ErrorCode.no_gene_id:
-            message = 'Could not find an ID for this gene. Add a \'db_xref\' qualifier to this CDS.'
+            message = ("Could not find an ID for this gene. "
+                       "Add a \'db_xref\' qualifier to this CDS.")
         elif self.code == ErrorCode.unknown_gene_orientation:
             message = 'Error reading the orientation for this gene.'
         elif self.code == ErrorCode.invalid_gene_start_codon:
@@ -578,11 +641,14 @@ class PhageError(object):
         elif self.code == ErrorCode.invalid_gene_sequence:
             message = 'Invalid gene sequence.'
         elif self.code == ErrorCode.gene_stop_out_of_bounds:
-            message = 'Gene stop location \'{}\' is greater than the phage sequence length.'.format(self.args[0])
+            message = ("Gene stop location \'{}\' is greater than the "
+                       "phage sequence length.").format(self.args[0])
         elif self.code == ErrorCode.gene_start_out_of_bounds:
-            message = 'Gene start location \'{}\' is greater than the phage sequence length.'.format(self.args[0])
+            message = ("Gene start location \'{}\' is greater than the "
+                       "phage sequence length.").format(self.args[0])
         elif self.code == ErrorCode.invalid_gene_sequence_length:
-            message = 'Gene sequence length must be a nonzero multiple of 3, but is \'{}\'.'.format(self.args[0])
+            message = ("Gene sequence length must be a nonzero "
+                       "multiple of 3, but is \'{}\'.").format(self.args[0])
         return message
 
     def __str__(self):
@@ -590,14 +656,12 @@ class PhageError(object):
 
         Includes the file name and line number.
         """
-        return '{} line {} - {}'.format(self.filename, self.line_number, self.message())
+        return '{} line {} - {}'.format(self.filename, self.line_number,
+                                        self.message())
 
     def __eq__(self, other):
         if isinstance(other, PhageError):
             return other.code == self.code
-        # TODO: Investigate
-        if isinstance(other, ErrorCode):
-            return other == self.code
         return NotImplemented
 
 
