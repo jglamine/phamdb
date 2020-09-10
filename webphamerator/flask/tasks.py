@@ -7,6 +7,7 @@ from flask_celeryext import FlaskCeleryExt
 
 from webphamerator.flask import models
 
+
 def build_celery(app):
     celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
     celery.conf.update(app.config)
@@ -22,8 +23,6 @@ def build_celery(app):
     celery.Task = ContextTask
 
     return celery
-
-celery = FlaskCeleryExt(create_celery_app=build_celery)
 
 class CallbackObserver(object):
     def __init__(self, job_id):
@@ -44,13 +43,14 @@ class CallbackObserver(object):
                 job_record.status_code = 'failed'
         models.db.session.commit()
 
+
 class CeleryHandler:
     def __init__(self, celery=None):
         self._celery = celery
         self._BaseTaskClass = None
         self._CreatorClass = None
         self._ModifierClass = None
-    
+
     @property
     def DatabaseCreator(self):
         if self._CreatorClass is None:
@@ -197,9 +197,9 @@ class CeleryHandler:
 
     def build_creatormaker(self):
         if self._BaseTaskClass is None:
-            self.build_base()
+            self.build_basemaker()
 
-        class CreateDatabase(_BaseTaskClass):
+        class CreateDatabase(self._BaseTaskClass):
             abstract = False
             success_message = 'Database created.'
             type_code = 'create'
@@ -221,9 +221,9 @@ class CeleryHandler:
 
     def build_modifiermaker(self):
         if self._BaseTaskClass is None:
-            self.build_base()
+            self.build_basemaker()
 
-        class ModifyDatabase(_BaseDatabaseTask):
+        class ModifyDatabase(self._BaseTaskClass):
             abstract = False
             success_message = 'Database updated.'
             type_code = 'edit'
@@ -241,6 +241,5 @@ class CeleryHandler:
 
         self._Modifier = ModifyDatabase
 
-farmer = CeleryHandler(celery=celery)
-        
-        
+
+celery = FlaskCeleryExt(create_celery_app=build_celery)

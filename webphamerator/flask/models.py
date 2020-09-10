@@ -27,7 +27,7 @@ class Database(db.Model):
     @classmethod
     def mysql_name_for(cls, name):
         m = hashlib.md5()
-        m.update(name)
+        m.update(name.encode("utf-8"))
         return 'PhameratorWeb_{}'.format(m.hexdigest())
 
     @classmethod

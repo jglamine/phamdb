@@ -30,6 +30,8 @@ def new_database():
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
+    farmer = tasks.CeleryHandler(celery=tasks.celery.celery)
+
     json_data = request.get_json()
     errors = []
 
@@ -111,7 +113,7 @@ def new_database():
         models.db.session.commit()
 
     if not test:
-        result = tasks.farmer.DatabaseCreator.delay(job_id)
+        result = farmer.DatabaseCreator.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
@@ -220,6 +222,8 @@ def modify_database(database_id):
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
+    farmer = tasks.CeleryHandler(celery=tasks.celery.celery)
+
     errors = []
 
     json_data = request.get_json()
@@ -299,7 +303,7 @@ def modify_database(database_id):
         database_record.locked = True
         models.db.session.commit()
         
-        result = tasks.farmer.DatabaseModifier.delay(job_id)
+        result = farmer.DatabaseModifier.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200

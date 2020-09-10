@@ -244,13 +244,16 @@ def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
         raise DatabaseAlreadyExistsError
 
     server.alchemist.engine.execute(f"CREATE DATABASE {identifier}")
+    server.alchemist.get_mysql_dbs()
     server.alchemist.database = identifier
+    server.alchemist.connect()
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
 
 
     sql_script_path = os.path.join(_DATA_DIR, 'create_database.sql')
     _execute_sql_file(server.alchemist, sql_script_path)
+
 
     try:
         # insert phages and build phams
@@ -295,7 +298,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
         genbank_files_to_add = []
 
     with closing(server.get_connection()) as cnx:
-        if not query.database_exists(cnx, identifier):
+        if not query.database_exists(server.alchemist, identifier):
             raise DatabaseDoesNotExistError('No such database: {}'.format(id))
 
     # open and validate genbank files
@@ -334,7 +337,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
         try:
             # check for phages which are already on the server
             for phage_id in phage_id_to_filenames:
-                if query.phage_exists(cnx, phage_id):
+                if query.phage_exists(server.alchemist, phage_id):
                     if phage_id not in organism_ids_to_delete:
                         duplicate_phage_ids_on_server.add(phage_id)
 
@@ -361,7 +364,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
             # delete organisms
             for index, phage_id in enumerate(organism_ids_to_delete):
                 callback(CallbackCode.status, 'deleting organisms', index, len(organism_ids_to_delete))
-                query.delete_phage(cnx, phage_id)
+                query.delete_phage(server.alchemist, phage_id)
 
             # validate and upload genbank files
             if genbank_files_to_add is not None:

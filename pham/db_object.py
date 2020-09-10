@@ -79,10 +79,10 @@ class Phage(object):
 
         # upload phage
         with closing(cnx.cursor()) as cursor:
-            values = (self.id, self.accension, self.name, self.host_strain, self.isolated, self.sequence, self.notes, self.sequence_length, self.gc)
+            values = (self.id, self.accension, self.name, self.host_strain, self.sequence, self.notes, self.sequence_length, self.gc)
             cursor.execute('''
-                INSERT INTO phage (PhageID, Accession, Name, HostStrain, Isolated, Sequence, Notes, SequenceLength, GC)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+                INSERT INTO phage (PhageID, Accession, Name, HostGenus, Sequence, Notes, Length, GC)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 ''', values)
 
         # upload genes, setting phage_id for each gene
@@ -128,10 +128,10 @@ class Gene(object):
 
         # upload gene
         with closing(cnx.cursor()) as cursor:
-            values = (self.gene_id, self.phage_id, self.notes, self.start, self.stop, self.length, self.translation, self.start_codon, self.stop_codon, self.name, self.type_id, self.orientation, self.gc, self.gc1, self.gc2, self.gc3, self.left_neighbor_id, self.right_neighbor_id)
+            values = (self.gene_id, self.phage_id, self.notes, self.start, self.stop, self.length, self.translation, self.name, self.orientation)
             cursor.execute('''
-                INSERT INTO gene (GeneID, PhageID, Notes, Start, Stop, Length, Translation, StartCodon, StopCodon, Name, TypeID, Orientation, GC, GC1, GC2, GC3, LeftNeighbor, RightNeighbor)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                INSERT INTO gene (GeneID, PhageID, Notes, Start, Stop, Length, Translation, Name, Orientation)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
                 ''', values)
 
 def _compute_gc_content(sequence):
