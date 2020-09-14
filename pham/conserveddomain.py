@@ -9,57 +9,58 @@ from mysql.connector import errorcode
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
 
-_OUTPUT_FORMAT_XML = 5 # constant used by rpsblast
+from pham.mmseqs import _write_fasta_record
+
+_OUTPUT_FORMAT_XML = 5  # constant used by rpsblast
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
+
 
 def find_domains(cnx, gene_ids, sequences, num_threads=1):
     try:
-        # build fasta file of all genes
-        fasta_filename = None
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as fasta_file:
-            fasta_filename = fasta_file.name
+        # Put all the genes in a fasta file
+        fasta_name = None
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as fasta:
+            fasta_name = fasta.name
             for gene_id, sequence in zip(gene_ids, sequences):
-                _write_fasta_record(fasta_file, sequence, gene_id)
+                _write_fasta_record(fasta, sequence, gene_id)
 
         output_directory = tempfile.mkdtemp(suffix='-blast')
         try:
             # run rpsblast
-            output_filename = os.path.join(output_directory, 'rpsblast.xml')
+            output_name = os.path.join(output_directory, 'rpsblast.xml')
             expectation_value_cutoff = 0.001
             cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database', 'Cdd', 'Cdd')
             rpsblast_bin = os.path.join(_DATA_DIR, 'ncbi-blast', 'rpsblast')
             cline = NcbirpsblastCommandline(rpsblast_bin,
-                                            query=fasta_filename,
+                                            query=fasta_name,
                                             db=cdd_database,
-                                            out=output_filename,
+                                            out=output_name,
                                             outfmt=_OUTPUT_FORMAT_XML,
                                             evalue=expectation_value_cutoff,
-                                            num_threads=num_threads
-                                            )
-            stdout, stderr = cline()
+                                            num_threads=num_threads)
+            # stdout, stderr = cline()
+            cline()
 
             # parse rpsblast output
-            read_domains_from_xml(cnx, output_filename)
+            read_domains_from_xml(cnx, output_name)
 
         finally:
+            # Delete output directory regardless of rpsblast/reading outcome
             shutil.rmtree(output_directory)
     finally:
-        if fasta_filename is not None:
+        # Delete input file regardless of rpsblast outcome
+        if fasta_name is not None:
             try:
-                os.remove(fasta_filename)
+                os.remove(fasta_name)
             except IOError:
                 pass
 
-    # set the gene.cdd_status flag to True
-    # this flag is used by legacy k_phamerate scripts
+    # Mark the now-processed genes as 'searched' for domains
     with closing(cnx.cursor()) as cursor:
-        id_parameters = ','.join(['%s'] * len(gene_ids))
-        query = '''
-            UPDATE gene
-            SET cdd_status = 1
-            WHERE gene.GeneID IN ( %s )
-                       ''' % id_parameters
-        cursor.execute(query, params=gene_ids)
+        in_clause = "'" + "', '".join(gene_ids) + "'"
+        q = f"UPDATE gene SET DomainStatus = 1 WHERE GeneID in ({in_clause})"
+        cursor.execute(q)
+
 
 def read_domains_from_xml(cnx, xml_filename):
     with open(xml_filename, 'r') as xml_handle:
@@ -84,6 +85,7 @@ def read_domains_from_xml(cnx, xml_filename):
 
                         _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end)
 
+
 def _read_hit(hit):
     items = hit.split(',')
 
@@ -103,20 +105,12 @@ def _read_hit(hit):
 
     return domain_id, name, description
 
-def _write_fasta_record(fasta_file, sequence, gene_id):
-    sequence = sequence.replace('-', 'M')
-    fasta_file.write('>{}\n'.format(gene_id))
-    index = 0
-    while index < len(sequence):
-        fasta_file.write('{}\n'.format(sequence[index:index + 80]))
-        index += 80
 
 def _upload_domain(cursor, hit_id, domain_id, name, description):
     try:
-        cursor.execute('''
-            INSERT INTO domain (hit_id, DomainID, Name, Description)
-            VALUES (%s, %s, %s, %s)
-            ''', (hit_id, domain_id, name, description))
+        q = f"INSERT INTO domain (HitID, DomainID, Name, Description) " \
+            f"VALUES ('{hit_id}', '{domain_id}', '{name}', '{description}')"
+        cursor.execute(q)
     except mysql.connector.errors.Error as e:
         # ignore inserts which fail because the record already exists
         if e.errno == errorcode.ER_DUP_ENTRY:
@@ -124,12 +118,13 @@ def _upload_domain(cursor, hit_id, domain_id, name, description):
         else:
             raise
 
+
 def _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end):
     try:
-        cursor.execute('''
-            INSERT INTO gene_domain (GeneID, hit_id, expect, query_start, query_end)
-            VALUES (%s, %s, %s, %s, %s)
-            ''', (gene_id, hit_id, expect, query_start, query_end))
+        q = f"INSERT INTO gene_domain (GeneID, HitID, Expect, QueryStart, " \
+            f"QueryEnd) VALUES ('{gene_id}', '{hit_id}', '{expect}', " \
+            f"'{query_start}', '{query_end}')"
+        cursor.execute(q)
     except mysql.connector.errors.Error as e:
         # ignore inserts which fail because the record already exists
         if e.errno == errorcode.ER_DUP_ENTRY:
