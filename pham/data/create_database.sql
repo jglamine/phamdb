@@ -30,7 +30,7 @@ CREATE TABLE `domain` (
   `Name` varchar(25) DEFAULT NULL,
   PRIMARY KEY (`ID`),
   UNIQUE KEY `hit_id` (`HitID`)
-) ENGINE=InnoDB AUTO_INCREMENT=3052009 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -99,7 +99,7 @@ CREATE TABLE `gene_domain` (
   KEY `hit_id` (`HitID`),
   CONSTRAINT `gene_domain_ibfk_1` FOREIGN KEY (`GeneID`) REFERENCES `gene` (`GeneID`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `gene_domain_ibfk_2` FOREIGN KEY (`HitID`) REFERENCES `domain` (`HitID`)
-) ENGINE=InnoDB AUTO_INCREMENT=448806 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
