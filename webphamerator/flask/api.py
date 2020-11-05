@@ -1,4 +1,3 @@
-import os
 import tempfile
 import shutil
 import pham.genbank
@@ -9,6 +8,7 @@ from flask import abort, Blueprint, current_app, request
 from webphamerator.flask import models, tasks, filters
 
 bp = Blueprint("api", __name__)
+
 
 @bp.route('/api/databases', methods=['POST'])
 def new_database():
@@ -30,7 +30,7 @@ def new_database():
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
-    farmer = tasks.CeleryHandler(celery=tasks.celery.celery)
+    farmer = tasks.CeleryHandler(celery=tasks.celeryext.celery)
 
     json_data = request.get_json()
     errors = []
@@ -51,16 +51,20 @@ def new_database():
 
     name = json_data.get('name')
     description = json_data.get('description')
-    phages_from_other_databases = json_data.get('phages_from_other_databases', [])
+    phages_from_other_databases = json_data.get(
+                                            'phages_from_other_databases', [])
     file_ids = json_data.get('file_ids', [])
     test = json_data.get('test', False)
 
-    count = models.db.session.query(models.Database).filter(models.Database.display_name == name).count()
+    count = models.db.session.query(models.Database).filter(
+                                models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
-    file_ids, err = _prepare_genbank_files(server, file_ids, phages_from_other_databases)
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    file_ids, err = _prepare_genbank_files(
+                                server, file_ids, phages_from_other_databases)
     errors += err
 
     if len(errors):
@@ -75,17 +79,17 @@ def new_database():
     genbank_filepaths = [x.filename for x in file_records]
 
     # create database record
-    database_record = models.Database(display_name=name,
-                                      name_slug=models.Database.phamerator_name_for(name),
-                                      description=description,
-                                      locked=True,
-                                      visible=False,
-                                      cdd_search=json_data['cdd_search'])
+    database_record = models.Database(
+                        display_name=name,
+                        name_slug=models.Database.phamerator_name_for(name),
+                        description=description, locked=True, visible=False,
+                        cdd_search=json_data['cdd_search'])
     models.db.session.add(database_record)
     models.db.session.commit()
 
     # check database creation transaction for errors
     database_id = database_record.mysql_name()
+
     success, errors = pham.db.check_create(server, database_id,
                                            genbank_files=genbank_filepaths)
 
@@ -107,13 +111,15 @@ def new_database():
     if len(file_ids):
         (models.db.session.query(models.GenbankFile)
             .filter(models.GenbankFile.id.in_(file_ids))
-            .update({ models.GenbankFile.job_id: job_record.id },
+            .update({models.GenbankFile.job_id: job_record.id},
                     synchronize_session='fetch')
-        )
+         )
         models.db.session.commit()
 
     if not test:
-        result = farmer.DatabaseCreator.delay(job_id)
+        print("Creating job delay...")
+        farmer.Create.delay(job_id)
+        print("Queued job...")
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
@@ -126,7 +132,7 @@ def import_sql_dump():
     """
     errors = []
     json_data = request.get_json()
-    
+
     if 'name' not in json_data:
         return 'Missing property \'name\'.', 412
     if 'description' not in json_data:
@@ -139,7 +145,8 @@ def import_sql_dump():
     filename = json_data.get('sql_dump_id')
     test = json_data.get('test', False)
 
-    count = models.db.session.query(models.Database).filter(models.Database.display_name == name).count()
+    count = models.db.session.query(models.Database).filter(
+                                models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
@@ -222,7 +229,7 @@ def modify_database(database_id):
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
-    farmer = tasks.CeleryHandler(celery=tasks.celery.celery)
+    farmer = tasks.CeleryHandler(celery=tasks.celeryext.celery)
 
     errors = []
 
@@ -302,8 +309,8 @@ def modify_database(database_id):
             database_record.description = description
         database_record.locked = True
         models.db.session.commit()
-        
-        result = farmer.DatabaseModifier.delay(job_id)
+
+        farmer.Modify.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200

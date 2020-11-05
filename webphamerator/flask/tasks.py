@@ -7,9 +7,14 @@ from flask_celeryext import FlaskCeleryExt
 
 from webphamerator.flask import models
 
+celery = Celery()
+
 
 def build_celery(app):
-    celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
+    celery.name = app.import_name
+    celery.broker = app.config["CELERY_BROKER_URL"]
+    # celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
+
     celery.conf.update(app.config)
     TaskBase = celery.Task
 
@@ -23,6 +28,10 @@ def build_celery(app):
     celery.Task = ContextTask
 
     return celery
+
+
+celeryext = FlaskCeleryExt(create_celery_app=build_celery)
+
 
 class CallbackObserver(object):
     def __init__(self, job_id):
@@ -52,18 +61,20 @@ class CeleryHandler:
         self._ModifierClass = None
 
     @property
-    def DatabaseCreator(self):
+    def Create(self):
         if self._CreatorClass is None:
             self.build_creatormaker()
 
-        return self._CreatorClass()
+        task = self._CreatorClass()
+        return task
 
     @property
-    def DatabaseModifier(self):
+    def Modify(self):
         if self._ModifierClass is None:
             self.build_modifiermaker()
 
-        return self._ModifierClass()
+        task = self._ModifierClass()
+        return task
 
     def build_basemaker(self):
         if self._celery is None:
@@ -100,6 +111,7 @@ class CeleryHandler:
                         .first())
 
             def run(self, job_id):
+                print("Running job...")
                 # get job record from the database
                 job_record = self._get_job(job_id)
                 database_record = self._get_database(job_record.database_id)
@@ -117,6 +129,7 @@ class CeleryHandler:
                 models.db.session.commit()
 
                 observer = CallbackObserver(job_id)
+                print("Calling main job function...")
                 success = self.database_call(database_record.mysql_name(),
                                              genbank_paths,
                                              organism_ids,
@@ -205,6 +218,7 @@ class CeleryHandler:
             type_code = 'create'
 
             def database_call(self, database_id, genbank_files, organism_ids, cdd_search, callback):
+                print("Creating actual database...")
                 return pham.db.create(self.server, database_id,
                                       genbank_files=genbank_files,
                                       cdd_search=cdd_search,
@@ -216,6 +230,8 @@ class CeleryHandler:
                 else:
                     job_record.status_message = 'Database already exists.'
                 models.db.session.delete(database_record)
+
+        print("Created database creator...")
 
         self._CreatorClass = CreateDatabase
 
@@ -240,6 +256,3 @@ class CeleryHandler:
                     job_record.status_message = 'Database does not exist.'
 
         self._Modifier = ModifyDatabase
-
-
-celery = FlaskCeleryExt(create_celery_app=build_celery)

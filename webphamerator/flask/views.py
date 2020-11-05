@@ -1,12 +1,15 @@
-from flask import render_template, abort, request, url_for, redirect, send_from_directory, make_response, session, current_app, Blueprint
+from flask import (
+        render_template, abort, request, url_for, redirect,
+        send_from_directory, make_response, session, current_app, Blueprint)
 from webphamerator.flask import models, auth
 from webphamerator.flask.models import db
-from webphamerator.flask.tasks import celery
+from webphamerator.flask.tasks import celery as celery_ext
 import pham.db
 import os
 import io
 
 bp = Blueprint("views", __name__)
+
 
 def get_navbar(active_url, ignore_done=False):
     queued_and_running = (db.session.query(models.Job).filter(
@@ -15,13 +18,13 @@ def get_navbar(active_url, ignore_done=False):
     success = 0
     if not ignore_done:
         error = (db.session.query(models.Job)
-                  .filter(models.Job.seen == False)
-                  .filter(models.Job.status_code == 'failed')
-                  .count())
+                 .filter(not models.Job.seen)
+                 .filter(models.Job.status_code == 'failed')
+                 .count())
         success = (db.session.query(models.Job)
-                    .filter(models.Job.seen == False)
-                    .filter(models.Job.status_code == 'success')
-                    .count())
+                   .filter(not models.Job.seen)
+                   .filter(models.Job.status_code == 'success')
+                   .count())
 
     navbar = list()
     navbar.append(NavbarItem('Databases', '/databases'))
@@ -59,7 +62,8 @@ class NavbarItem(object):
 @bp.route('/databases')
 def databases():
     dbs = (db.session.query(models.Database).filter(
-        models.Database.visible is True).order_by(models.Database.display_name).all())
+        models.Database.visible is True).order_by(
+                                        models.Database.display_name).all())
 
     return render_template('databases.html',
                            title='Databases',
@@ -81,7 +85,8 @@ class PhageViewModel(object):
 @bp.route('/databases/<int:db_id>', methods=['GET'])
 def database(db_id):
     database = (db.session.query(models.Database).filter(
-        models.Database.visible is True).filter(models.Database.id == db_id).first())
+                                    models.Database.visible).filter(
+                                        models.Database.id == db_id).first())
 
     if database is None:
         abort(404)
@@ -99,24 +104,26 @@ def database(db_id):
 
     server_url = request.url_root + 'db/'
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
     for phage in pham.db.list_organisms(server, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,
                                  name=phage.name,
                                  genes=phage.genes,
-                                 url='/databases/{}/phage/{}'.format(database.id, phage.id)
-                                 ))
+                                 url='/databases/{}/phage/{}'.format(
+                                     database.id, phage.id)))
 
-    return render_template('database.html',
-                           title='Database - {}'.format(database.display_name),
-                           database=database,
-                           percent_orphams=percent_orphams,
-                           server_url=server_url,
-                           sql_dump_filename='{}.sql'.format(database.name_slug),
-                           phages=phage_view_models,
-                           navbar=get_navbar('/databases'))
+    return render_template(
+                        'database.html',
+                        title='Database - {}'.format(database.display_name),
+                        database=database,
+                        percent_orphams=percent_orphams,
+                        server_url=server_url,
+                        sql_dump_filename='{}.sql'.format(database.name_slug),
+                        phages=phage_view_models,
+                        navbar=get_navbar('/databases'))
 
 
 @bp.route('/databases/<int:db_id>', methods=['POST'])
@@ -131,10 +138,11 @@ def delete_database(db_id):
     if request.form.get('delete') not in ['true', 'True']:
         return redirect(url_for('database', db_id=db_id), code=303)
 
-    if db_record.locked == True:
+    if db_record.locked:
         return redirect(url_for('database', db_id=db_id), code=303)
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     pham.db.delete(server, db_record.mysql_name())
     db.session.delete(db_record)
     db.session.commit()
@@ -144,7 +152,7 @@ def delete_database(db_id):
 @bp.route('/databases/<int:db_id>/edit', methods=['GET'])
 def edit_database(db_id):
     database = (db.session.query(models.Database)
-                .filter(models.Database.visible == True)
+                .filter(models.Database.visible)
                 .filter(models.Database.id == db_id)
                 .first()
                 )
@@ -152,7 +160,8 @@ def edit_database(db_id):
     if database is None:
         abort(404)
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
     for phage in pham.db.list_organisms(server, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
@@ -161,35 +170,39 @@ def edit_database(db_id):
                                  genes=phage.genes
                                  ))
 
-    return render_template('edit-database.html',
-                           title='Edit Database - {}'.format(database.display_name),
-                           database=database,
-                           phages=[phage.to_dict() for phage in phage_view_models],
-                           navbar=get_navbar('/databases'))
+    return render_template(
+                    'edit-database.html',
+                    title='Edit Database - {}'.format(database.display_name),
+                    database=database,
+                    phages=[phage.to_dict() for phage in phage_view_models],
+                    navbar=get_navbar('/databases'))
 
 
 @bp.route('/databases/<int:db_id>/phage/<phage_id>', methods=['GET'])
 def download_genbank_file(db_id, phage_id):
     db_record = (db.session.query(models.Database).filter(
-        models.Database.visible is True).filter(models.Database.id == db_id).first())
+                                    models.Database.visible).filter(
+                                        models.Database.id == db_id).first())
 
     if db_record is None:
         abort(404)
 
     # export genbank file
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     handle = io.StringIO()
     try:
         phage = pham.db.export_to_genbank(server, db_record.mysql_name(),
                                           phage_id,
                                           handle)
-    except pham.db.DatabaseDoesNotExistError as e:
+    except pham.db.DatabaseDoesNotExistError:
         return abort(404)
-    except pham.db.PhageNotFoundError as e:
+    except pham.db.PhageNotFoundError:
         return abort(404)
 
     response = make_response(handle.getvalue())
-    response.headers['Content-Disposition'] = 'attachment; filename={}'.format(phage.name + '.gb')
+    response.headers['Content-Disposition'] = 'attachment; filename={}'.format(
+                                                            phage.name + '.gb')
     return response
 
 
@@ -205,7 +218,8 @@ def jobs_page(page):
 
     page_size = 8
     jobs = (db.session.query(models.Job).order_by(
-        models.Job.modified.desc()).limit(page_size).offset(page_size * (page - 1)))
+            models.Job.modified.desc()).limit(page_size).offset(
+                                                    page_size * (page - 1)))
     total_jobs = db.session.query(models.Job).count()
     next_page = None
     prev_page = None
@@ -241,13 +255,12 @@ def cancel_all_jobs():
     if request.form.get('cancel-all') not in ['true', 'True']:
         return redirect(url_for('jobs'), code=303)
 
-    celery.control.purge()
+    celery_ext.celery.control.purge()
     # kill currently running tasks
     running_jobs = (db.session.query(models.Job)
-            .filter(models.Job.status_code == 'running')
-            .all())
+                    .filter(models.Job.status_code == 'running').all())
     running_job_ids = [job.task_id for job in running_jobs]
-    celery.control.revoke(running_job_ids, terminate=True)
+    celery_ext.celery.control.revoke(running_job_ids, terminate=True)
 
     # delete job entries
     jobs = (db.session.query(models.Job)
@@ -255,7 +268,8 @@ def cancel_all_jobs():
             .all())
 
     # delete database entries
-    database_ids = [job.database_id for job in jobs if job.type_code == 'create']
+    database_ids = [
+                job.database_id for job in jobs if job.type_code == 'create']
     if len(database_ids):
         (db.session.query(models.Database)
          .filter(models.Database.id.in_(database_ids))
@@ -266,7 +280,7 @@ def cancel_all_jobs():
 
     # unlock all databases
     (db.session.query(models.Database)
-     .filter(models.Database.locked == True)
+     .filter(models.Database.locked)
      .update({'locked': False}))
 
     db.session.commit()
@@ -409,7 +423,7 @@ def update_settings():
     if password is not None:
         auth.set_password(password)
         successes.append('Password updated.')
-    
+
     # delete password
     if request.form.get('delete-password') == 'true':
         auth.delete_password()
@@ -420,10 +434,10 @@ def update_settings():
 
     return redirect(url_for('settings'))
 
-
     @bp.route('/db/<path:path>')
     def download_database(path):
-        return send_from_directory(current_app.config['DATABASE_DUMP_DIR'], path)
+        return send_from_directory(
+                            current_app.config['DATABASE_DUMP_DIR'], path)
 
 
 @bp.route('/db')
