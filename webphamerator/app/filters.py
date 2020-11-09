@@ -1,6 +1,7 @@
 import datetime
 import humanize
 
+
 def replaceifequal(arg, value, replace_with):
     if arg == value:
         return replace_with
@@ -8,7 +9,9 @@ def replaceifequal(arg, value, replace_with):
 
 def humandate(timestamp):
     if datetime.datetime.utcnow() - timestamp < datetime.timedelta(days=1):
-        human_delta = humanize.naturaltime(timestamp + (datetime.datetime.now() - datetime.datetime.utcnow()))
+        human_delta = humanize.naturaltime(timestamp +
+                                           (datetime.datetime.now() -
+                                            datetime.datetime.utcnow()))
         if str(human_delta) == 'now':
             human_delta = 'a few seconds ago'
         return human_delta

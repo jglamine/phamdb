@@ -11,7 +11,8 @@ def _default_callback(*args, **kwargs):
     pass
 
 
-def cluster(gene_sequences, gene_ids, on_first_iteration_done=_default_callback):
+def cluster(gene_sequences, gene_ids,
+            on_first_iteration_done=_default_callback):
     """
     Group genes into clusters (phams) by similarity.
 
@@ -114,7 +115,7 @@ class _MMseqs(object):
         # Write fasta input
         with open(fasta, "w") as fh:
             for gene_id in gene_ids:
-                sequence = self._gene_id_to_sequence[gene_id]
+                sequence = self._gene_id_to_sequence[gene_id].decode("utf-8")
                 _write_fasta_record(fh, sequence, gene_id)
 
         # Create MMseqs2 database from fasta

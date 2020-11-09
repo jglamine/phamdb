@@ -7,7 +7,6 @@ billiard==3.6.3.0
 celery==4.4.6
 decorator==4.4.2
 Flask==1.1.2
-Flask-CeleryExt==0.3.4
 Flask-Migrate==2.5.3
 Flask-Script==2.0.6
 Flask-SQLAlchemy==2.4.4

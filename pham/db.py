@@ -238,14 +238,16 @@ def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
 
     Exceptions: DatabaseAlreadyExistsError
     """
+    identifier = str(identifier)
+
     # create a blank database
     callback(CallbackCode.status, 'initializing database', 0, 2)
     if query.database_exists(server.alchemist, identifier):
         raise DatabaseAlreadyExistsError
 
-    server.alchemist.engine.execute(f"CREATE DATABASE {identifier}")
+    server.alchemist.engine.execute(f"CREATE DATABASE `{identifier}`")
     server.alchemist.get_mysql_dbs()
-    server.alchemist.database = identifier
+    server.alchemist.database = str(identifier)
     server.alchemist.connect()
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
@@ -274,7 +276,7 @@ def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
 def delete(server, identifier):
     """Delete a Phamerator database.
     """
-    server.alchemist.engine.execute(f"DROP DATABASE IF EXISTS {identifier}")
+    server.alchemist.engine.execute(f"DROP DATABASE IF EXISTS `{identifier}`")
 
 
 # deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
@@ -481,7 +483,7 @@ def load(server, identifier, filepath):
     if query.database_exists(server.alchemist, identifier):
         raise DatabaseAlreadyExistsError(f"Database {identifier} already exists.")
 
-    server.alchemist.engine.execute(f"CREATE DATABASE {identifier}")
+    server.alchemist.engine.execute(f"CREATE DATABASE `{identifier}`")
     server.alchemist.database = identifier
 
     try:

@@ -8,8 +8,8 @@ SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
 GENBANK_FILE_DIR = os.path.join(basedir, 'genbank_files')
 DATABASE_DUMP_DIR = os.path.join(basedir, 'database_dumps')
 
-CELERY_IMPORTS = ["flask.tasks"]
-CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
+INSTALLED_APPS = ["webphamerator.flask.tasks"]
+CELERY_BROKER_URI = 'amqp://guest:guest@localhost:5672//'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERYD_CONCURRENCY = 1

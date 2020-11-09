@@ -7,13 +7,14 @@ from webphamerator.flask import models
 
 def build_manager():
     app = create_app()
-    
-    migrate = Migrate(app, models.db)
+
+    Migrate(app, models.db)
 
     manager = Manager(app=app)
     manager.add_command("db", MigrateCommand)
 
     return manager
+
 
 if __name__ == '__main__':
     manager = build_manager()

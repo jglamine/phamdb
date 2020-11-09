@@ -3,9 +3,8 @@ import datetime
 import unicodedata
 from slugify import slugify
 
-from flask_sqlalchemy import SQLAlchemy
+from webphamerator.app.sqlalchemy_ext import db
 
-db = SQLAlchemy()
 
 class Database(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,7 +33,7 @@ class Database(db.Model):
     def phamerator_name_for(cls, name):
         slug = slugify(name)
         slug = slug.replace('-', '_')
-        return unicodedata.normalize('NFKD', slug).encode('ascii','ignore')
+        return unicodedata.normalize('NFKD', slug).encode('ascii', 'ignore')
 
     def mysql_name(self):
         """The name of the database in MySQL.
@@ -49,18 +48,23 @@ class Database(db.Model):
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    database_id = db.Column(db.Integer, db.ForeignKey('database.id', ondelete='SET NULL'))
+    database_id = db.Column(db.Integer, db.ForeignKey(
+                                        'database.id', ondelete='SET NULL'))
     database_name = db.Column(db.String(255))
     task_id = db.Column(db.String(64))
     status_code = db.Column(db.String(32))
     status_message = db.Column(db.String(255))
     type_code = db.Column(db.String(32))
-    modified = db.Column(db.DateTime(), default=datetime.datetime.utcnow()) # used to sort when displaying
+    # used to sort when displaying
+    modified = db.Column(
+                    db.DateTime(), default=datetime.datetime.utcnow())
     start_time = db.Column(db.DateTime())
     runtime = db.Column(db.Interval())
     seen = db.Column(db.Boolean)
-    genbank_files_to_add = db.relationship('GenbankFile', backref='job', lazy='dynamic')
-    organism_ids_to_delete = db.relationship('JobOrganismToDelete', backref='job', lazy='dynamic')
+    genbank_files_to_add = db.relationship(
+                                'GenbankFile', backref='job', lazy='dynamic')
+    organism_ids_to_delete = db.relationship(
+                        'JobOrganismToDelete', backref='job', lazy='dynamic')
 
     def __repr__(self):
         return '<Job {} "{}"">'.format(self.id, self.status_code)
@@ -72,7 +76,8 @@ class JobOrganismToDelete(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey('job.id', ondelete='CASCADE'))
 
     def __repr__(self):
-        return '<JobOrganismToDelete {} {} {}>'.format(self.id, self.organism_id, self.job_id)
+        return '<JobOrganismToDelete {} {} {}>'.format(
+                                    self.id, self.organism_id, self.job_id)
 
 
 class GenbankFile(db.Model):
@@ -88,7 +93,9 @@ class GenbankFile(db.Model):
     length = db.Column(db.Integer)
     genes = db.Column(db.Integer)
     gc_content = db.Column(db.Float)
-    expires = db.Column(db.DateTime, default=datetime.datetime.utcnow() + datetime.timedelta(days=7))
+    expires = db.Column(
+         db.DateTime, default=datetime.datetime.utcnow() + datetime.timedelta(
+                                                                    days=7))
 
     def __repr__(self):
         return '<GenbankFile {} {}>'.format(self.id, self.name)

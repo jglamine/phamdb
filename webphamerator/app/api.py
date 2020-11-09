@@ -1,11 +1,15 @@
 import tempfile
 import shutil
+import os
 import pham.genbank
 import pham.db
 
 import flask
-from flask import abort, Blueprint, current_app, request
-from webphamerator.flask import models, tasks, filters
+from flask import (abort, Blueprint, current_app, request)
+from webphamerator.app import sqlalchemy_ext as sqlext
+from webphamerator.app import (filters, celery_ext)
+from webphamerator.app.sqlalchemy_ext import models
+from webphamerator.app.celery_ext import tasks
 
 bp = Blueprint("api", __name__)
 
@@ -30,7 +34,8 @@ def new_database():
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
-    farmer = tasks.CeleryHandler(celery=tasks.celeryext.celery)
+    # with current_app.app_context():
+    #    database_farmer = tasks.database_farmer
 
     json_data = request.get_json()
     errors = []
@@ -56,7 +61,7 @@ def new_database():
     file_ids = json_data.get('file_ids', [])
     test = json_data.get('test', False)
 
-    count = models.db.session.query(models.Database).filter(
+    count = sqlext.db.session.query(models.Database).filter(
                                 models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
@@ -72,7 +77,7 @@ def new_database():
 
     file_records = []
     if len(file_ids):
-        file_records = (models.db.session.query(models.GenbankFile)
+        file_records = (sqlext.db.session.query(models.GenbankFile)
                         .filter(models.GenbankFile.id.in_(file_ids))
                         .all())
 
@@ -84,8 +89,8 @@ def new_database():
                         name_slug=models.Database.phamerator_name_for(name),
                         description=description, locked=True, visible=False,
                         cdd_search=json_data['cdd_search'])
-    models.db.session.add(database_record)
-    models.db.session.commit()
+    sqlext.db.session.add(database_record)
+    sqlext.db.session.commit()
 
     # check database creation transaction for errors
     database_id = database_record.mysql_name()
@@ -94,8 +99,8 @@ def new_database():
                                            genbank_files=genbank_filepaths)
 
     if not success:
-        models.db.session.delete(database_record)
-        models.db.session.commit()
+        sqlext.db.session.delete(database_record)
+        sqlext.db.session.commit()
         return flask.jsonify(errors=errors,
                              job_id=None), 400
 
@@ -104,21 +109,27 @@ def new_database():
                             status_message='Waiting to run.',
                             database_name=database_record.display_name,
                             seen=False)
-    models.db.session.add(job_record)
-    models.db.session.commit()
+    sqlext.db.session.add(job_record)
+    sqlext.db.session.commit()
     job_id = job_record.id
 
     if len(file_ids):
-        (models.db.session.query(models.GenbankFile)
+        (sqlext.db.session.query(models.GenbankFile)
             .filter(models.GenbankFile.id.in_(file_ids))
             .update({models.GenbankFile.job_id: job_record.id},
                     synchronize_session='fetch')
          )
-        models.db.session.commit()
+        sqlext.db.session.commit()
 
     if not test:
         print("Creating job delay...")
-        farmer.Create.delay(job_id)
+        # database_farmer.create.delay(job_id)
+
+        task = celery_ext.celery.task()(tasks.create_database)
+        celery_ext.celery.register_task(task)
+        task(job_id)
+
+        # tasks.create_database.delay(job_id)
         print("Queued job...")
 
     return flask.jsonify(errors=[],
@@ -145,7 +156,7 @@ def import_sql_dump():
     filename = json_data.get('sql_dump_id')
     test = json_data.get('test', False)
 
-    count = models.db.session.query(models.Database).filter(
+    count = sqlext.db.session.query(models.Database).filter(
                                 models.Database.display_name == name).count()
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
@@ -186,8 +197,8 @@ def import_sql_dump():
                                       number_of_orphams=database_summary.number_of_orphams,
                                       number_of_phams=database_summary.number_of_phams,
                                       cdd_search=database_summary.number_of_conserved_domain_hits > 0)
-    models.db.session.add(database_record)
-    models.db.session.commit()
+    sqlext.db.session.add(database_record)
+    sqlext.db.session.commit()
 
     # export database dump
     path = os.path.join(current_app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
@@ -229,7 +240,7 @@ def modify_database(database_id):
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
-    farmer = tasks.CeleryHandler(celery=tasks.celeryext.celery)
+    database_farmer = tasks.database_farmer
 
     errors = []
 
@@ -247,7 +258,7 @@ def modify_database(database_id):
     description = json_data.get('description')
     test = json_data.get('test', False)
 
-    database_record = (models.db.session.query(models.Database)
+    database_record = (sqlext.db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
                        .first())
     if database_record is None:
@@ -255,8 +266,10 @@ def modify_database(database_id):
     elif database_record.locked is True:
         errors.append('This database already has a queued job.')
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
-    file_ids, err = _prepare_genbank_files(server, file_ids, phages_from_other_databases)
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    file_ids, err = _prepare_genbank_files(server, file_ids,
+                                           phages_from_other_databases)
     errors += err
 
     if len(errors):
@@ -264,7 +277,7 @@ def modify_database(database_id):
 
     file_records = []
     if len(file_ids):
-        file_records = (models.db.session.query(models.GenbankFile)
+        file_records = (sqlext.db.session.query(models.GenbankFile)
                         .filter(models.GenbankFile.id.in_(file_ids))
                         .all())
 
@@ -285,32 +298,32 @@ def modify_database(database_id):
                             status_message='Waiting to run.',
                             database_name=database_record.display_name,
                             seen=False)
-    models.db.session.add(job_record)
-    models.db.session.commit()
+    sqlext.db.session.add(job_record)
+    sqlext.db.session.commit()
     job_id = job_record.id
 
     for phage_id in phage_ids:
         record = models.JobOrganismToDelete(organism_id=phage_id,
                                             job_id=job_id)
-        models.db.session.add(record)
+        sqlext.db.session.add(record)
     if len(phage_ids):
-        models.db.session.commit()
+        sqlext.db.session.commit()
 
     if len(file_ids):
-        (models.db.session.query(models.GenbankFile)
+        (sqlext.db.session.query(models.GenbankFile)
             .filter(models.GenbankFile.id.in_(file_ids))
-            .update({ models.GenbankFile.job_id: job_id },
+            .update({models.GenbankFile.job_id: job_id},
                     synchronize_session='fetch')
-        )
-        models.db.session.commit()
+         )
+        sqlext.db.session.commit()
 
     if not test:
         if description is not None:
             database_record.description = description
         database_record.locked = True
-        models.db.session.commit()
+        sqlext.db.session.commit()
 
-        farmer.Modify.delay(job_id)
+        database_farmer.modify.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200
@@ -326,7 +339,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
     """
     errors = []
     if len(file_ids):
-        file_record_count = (models.db.session.query(models.GenbankFile)
+        file_record_count = (sqlext.db.session.query(models.GenbankFile)
                              .filter(models.GenbankFile.id.in_(file_ids))
                              .count())
         if len(file_ids) != file_record_count:
@@ -338,7 +351,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
             phage_id = phage['id']
             database_id = phage['database']
 
-            db_record = (models.db.session.query(models.Database)
+            db_record = (sqlext.db.session.query(models.Database)
                          .filter(models.Database.id == database_id)
                          .first())
             if db_record is None:
@@ -371,8 +384,8 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
                 for error in phage.errors:
                     errors.append('Line: {} - {}'.format(error.line_number, error.message()))
             else:
-                models.db.session.add(file_record)
-                models.db.session.commit()
+                sqlext.db.session.add(file_record)
+                sqlext.db.session.commit()
                 file_ids.append(file_record.id)
 
     return file_ids, errors
@@ -397,7 +410,7 @@ def list_databases():
             ]
         }
     """
-    databases = (models.db.session.query(models.Database)
+    databases = (sqlext.db.session.query(models.Database)
                  .filter(models.Database.visible is True)
                  .all())
     database_dictionaries = []
@@ -437,7 +450,7 @@ def list_phages(database_id):
     """
     errors = list()
 
-    database_record = (models.db.session.query(models.Database)
+    database_record = (sqlext.db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
                        .first())
     if database_record is None:
@@ -474,7 +487,7 @@ def database_name_taken():
 
     name_slug = models.Database.phamerator_name_for(name)
 
-    count = (models.db.session.query(models.Database)
+    count = (sqlext.db.session.query(models.Database)
              .filter(models.Database.name_slug == name_slug)
              .count()
              )
@@ -491,7 +504,7 @@ def delete_genbank_file(file_id):
         200: file deleted
         404: file not found
     """
-    file_record = models.db.session.query(models.GenbankFile).filter(models.GenbankFile.id == file_id).first()
+    file_record = sqlext.db.session.query(models.GenbankFile).filter(models.GenbankFile.id == file_id).first()
     if file_record is None:
         abort(404)
 
@@ -500,8 +513,8 @@ def delete_genbank_file(file_id):
         os.remove(path)
     except OSError:
         pass
-    models.db.session.delete(file_record)
-    models.db.session.commit()
+    sqlext.db.session.delete(file_record)
+    sqlext.db.session.commit()
     return '', 200
 
 
@@ -558,8 +571,8 @@ def new_genbank_file():
                                      genes=len(phage.genes),
                                      gc_content=phage.gc
                                      )
-    models.db.session.add(file_record)
-    models.db.session.commit()
+    sqlext.db.session.add(file_record)
+    sqlext.db.session.commit()
 
     phage_data = {
         'file_id': file_record.id,
@@ -608,7 +621,8 @@ def upload_file():
 
 @bp.route('/api/jobs/<int:job_id>', methods=['GET'])
 def job_status(job_id):
-    job = models.db.session.query(models.Job).filter(models.Job.id == job_id).first()
+    job = sqlext.db.session.query(models.Job).filter(
+                                            models.Job.id == job_id).first()
     if job is None:
         abort(404)
 
@@ -622,7 +636,7 @@ def job_status(job_id):
 
     database_url = None
     if job.status_code == 'success':
-        database_record = (models.db.session.query(models.Database)
+        database_record = (sqlext.db.session.query(models.Database)
                            .filter(models.Database.id == job.database_id)
                            .first()
                            )
@@ -641,11 +655,11 @@ def job_status(job_id):
 
 @bp.route('/api/jobs/<int:job_id>', methods=['POST'])
 def mark_job_as_seen(job_id):
-    job = models.db.session.query(models.Job).filter(models.Job.id == job_id).first()
+    job = sqlext.db.session.query(models.Job).filter(models.Job.id == job_id).first()
     if job is None:
         abort(404)
 
     job.seen = True
-    models.db.session.commit()
+    sqlext.db.session.commit()
 
     return '', 200

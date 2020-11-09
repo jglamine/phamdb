@@ -1,9 +1,9 @@
 from flask import (
         render_template, abort, request, url_for, redirect,
         send_from_directory, make_response, session, current_app, Blueprint)
-from webphamerator.flask import models, auth
-from webphamerator.flask.models import db
-from webphamerator.flask.tasks import celery as celery_ext
+from webphamerator.app.celery_ext import celery
+from webphamerator.app import auth
+from webphamerator.app.sqlalchemy_ext import (db, models)
 import pham.db
 import os
 import io
@@ -253,14 +253,14 @@ def jobs_page(page):
 @bp.route('/jobs', methods=['POST'])
 def cancel_all_jobs():
     if request.form.get('cancel-all') not in ['true', 'True']:
-        return redirect(url_for('jobs'), code=303)
+        return redirect(url_for('views.jobs'), code=303)
 
-    celery_ext.celery.control.purge()
+    celery.control.purge()
     # kill currently running tasks
     running_jobs = (db.session.query(models.Job)
                     .filter(models.Job.status_code == 'running').all())
     running_job_ids = [job.task_id for job in running_jobs]
-    celery_ext.celery.control.revoke(running_job_ids, terminate=True)
+    celery.control.revoke(running_job_ids, terminate=True)
 
     # delete job entries
     jobs = (db.session.query(models.Job)
@@ -285,7 +285,7 @@ def cancel_all_jobs():
 
     db.session.commit()
 
-    return redirect(url_for('jobs'), code=302)
+    return redirect(url_for('views.jobs'), code=302)
 
 
 @bp.route('/jobs/<int:job_id>', methods=['GET'])

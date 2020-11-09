@@ -1,12 +1,13 @@
 import os
 import binascii
 from flask import Blueprint, request, redirect, session
-from webphamerator.flask import models
+from webphamerator.app.sqlalchemy_ext import models
 from backports.pbkdf2 import pbkdf2_hmac, compare_digest
 
 AUTHENTICATION_NOT_NEEDED = ['/signin', '/db', '/static']
 
 bp = Blueprint("auth", __name__)
+
 
 @bp.before_request
 def require_authentication():
@@ -21,8 +22,7 @@ def require_authentication():
 
 
 def is_authenticated():
-    signed_in = session.get('authenticated') == True
-    if signed_in:
+    if session.get("authenticated"):
         return True
 
 
