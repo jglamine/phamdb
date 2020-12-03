@@ -5,8 +5,11 @@ from webphamerator.app import (
 from webphamerator.app.celery_ext import tasks
 
 
-def create_app():
-    app = Flask(__name__)
+PKG_NAME = "PhamDB"
+
+
+def create_app(app_name=PKG_NAME, **kwargs):
+    app = Flask(app_name)
 
     app.config.from_object("webphamerator.config")
 
@@ -15,10 +18,15 @@ def create_app():
     if not os.path.exists(app.config['DATABASE_DUMP_DIR']):
         os.makedirs(app.config['DATABASE_DUMP_DIR'])
 
+    celery = kwargs.get("celery")
+    if celery is not None:
+        with app.app_context():
+            celery_ext.init_celery(celery, app)
+            tasks.database_farmer.init_app(app, celery_ext.celery)
+
     with app.app_context():
         sqlalchemy_ext.db.init_app(app)
-        celery_ext.init_app(celery_ext.celery, app)
-        tasks.database_farmer.init_app(app, celery_ext.celery)
+        celery_ext.init_celery(celery_ext.celery, app)
 
         app.jinja_env.filters["replaceifequal"] = filters.replaceifequal
         app.jinja_env.filters["humandate"] = filters.humandate

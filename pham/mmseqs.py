@@ -153,7 +153,7 @@ class _MMseqs(object):
         prodb = self._pro_db
         condb = self._con_db
         alndb = self._aln_db
-        resdb = self._res_db
+        # resdb = self._res_db
         siseq = self._siseq_db
         siout = self._siout
 
@@ -177,7 +177,8 @@ class _MMseqs(object):
         _call(command)
 
         # Parse and store second-iteration phams
-        command = f"{self._mmseqs_path} createseqfiledb {seqdb} {resdb} " \
+        # command = f"{self._mmseqs_path} createseqfiledb {seqdb} {resdb} " \
+        command = f"{self._mmseqs_path} createseqfiledb {seqdb} {cludb} " \
                   f"{siseq} -v 0"
         _call(command)
 
@@ -208,7 +209,8 @@ class _MMseqs(object):
             while current:
                 # If current is a header
                 if current.startswith(">"):
-                    # If prior was also a header, dump the current pham and start new
+                    # If prior was also a header, dump the current pham
+                    # and start new
                     if prior.startswith(">"):
                         try:
                             gene_ids.pop(-1)
@@ -303,7 +305,8 @@ def _write_fasta_record(fasta_file, sequence, gene_id):
 
 def _call(command):
     """
-    Wrapper to call a shell command, discarding all output printed to the screen.
+    Wrapper to call a shell command, discarding all output
+    printed to the screen.
 
     Returns the exit code of the command.
     """

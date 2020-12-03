@@ -35,7 +35,7 @@ def new_database():
         412: POST data missing a required property
     """
     # with current_app.app_context():
-    #    database_farmer = tasks.database_farmer
+    database_farmer = tasks.database_farmer
 
     json_data = request.get_json()
     errors = []
@@ -122,14 +122,15 @@ def new_database():
         sqlext.db.session.commit()
 
     if not test:
-        print("Creating job delay...")
         # database_farmer.create.delay(job_id)
+        # task = database_farmer.create
+        # task.run (job_id)
 
-        task = celery_ext.celery.task()(tasks.create_database)
-        celery_ext.celery.register_task(task)
-        task(job_id)
+        # task = celery_ext.celery.task()(tasks.create_database)
+        # celery_ext.celery.register_task(task)
+        # task(job_id)
 
-        # tasks.create_database.delay(job_id)
+        tasks.create_database.delay(job_id)
         print("Queued job...")
 
     return flask.jsonify(errors=[],

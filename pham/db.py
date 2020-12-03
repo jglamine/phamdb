@@ -180,7 +180,7 @@ def check_create(server, identifier, genbank_files=None):
         success = create(server, identifier, genbank_files=genbank_files,
                          cdd_search=False, callback=observer.record_call,
                          commit=False)
-    except DatabaseAlreadyExistsError as e:
+    except DatabaseAlreadyExistsError:
         errors = list()
         errors.append('Database name is already in use.')
         errors += observer.error_messages()
@@ -212,7 +212,7 @@ def check_rebuild(server, id, organism_ids=None, genbank_files=None):
                           cdd_search=False,
                           callback=observer.record_call,
                           commit=False)
-    except DatabaseDoesNotExistError as e:
+    except DatabaseDoesNotExistError:
         errors = list()
         errors.append('Database does not exist.')
         errors += observer.error_messages()
@@ -280,8 +280,9 @@ def delete(server, identifier):
 
 
 # deletes entries/IMPORTs entries and rePHAMERATEs and sometimes FIND_DOMAINS
-def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_add=None,
-            cdd_search=True, commit=True, callback=_default_callback):
+def rebuild(server, identifier, organism_ids_to_delete=None,
+            genbank_files_to_add=None, cdd_search=True, commit=True,
+            callback=_default_callback):
     """Modify an existing Phamerator database, rebuilding phams.
 
     Status and errors are reported to `callback`. The first argument of each
@@ -289,7 +290,8 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
 
     organism_ids_to_delete: a list of ids of phages to delete.
     genbank_files_to_add: a list of paths to genbank files.
-    cdd_search (boolean): search for each gene in NCBI conserved domain database.
+    cdd_search (boolean): search for each gene in NCBI conserved domain
+    database.
     commit (boolean): Commit changes to the database.
 
     Returns True if the operation succeed, False if it failed.
@@ -314,7 +316,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
             callback(CallbackCode.status, 'validating genbank files', index, len(genbank_files_to_add))
             try:
                 phage = genbank.read_file(path)
-            except IOError as e:
+            except IOError:
                 valid = False
                 callback(CallbackCode.file_does_not_exist, path)
                 continue
@@ -365,13 +367,15 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
 
             # delete organisms
             for index, phage_id in enumerate(organism_ids_to_delete):
-                callback(CallbackCode.status, 'deleting organisms', index, len(organism_ids_to_delete))
+                callback(CallbackCode.status, 'deleting organisms', index,
+                         len(organism_ids_to_delete))
                 query.delete_phage(server.alchemist, phage_id)
 
             # validate and upload genbank files
             if genbank_files_to_add is not None:
                 for index, path in enumerate(genbank_files_to_add):
-                    callback(CallbackCode.status, 'uploading organisms', index, len(genbank_files_to_add))
+                    callback(CallbackCode.status, 'uploading organisms', index,
+                             len(genbank_files_to_add))
                     phage = genbank.read_file(path)
                     if not phage.is_valid():
                         for error in phage.errors:
@@ -381,7 +385,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
                     # upload phage
                     try:
                         phage.upload(cnx)
-                    except mysql.connector.errors.IntegrityError as e:
+                    except mysql.connector.errors.IntegrityError:
                         callback(CallbackCode.gene_id_already_exists, phage.id)
                         cnx.rollback()
                         return False
@@ -413,43 +417,45 @@ def rebuild(server, identifier, organism_ids_to_delete=None, genbank_files_to_ad
                         try:
                             pham_id_to_gene_ids = mmseqs.cluster(
                                 sequences, gene_ids,
-                                on_first_iteration_done=lambda: callback(CallbackCode.status, 'calculating phams', 1, 2))
-                        except MemoryError as e:
+                                on_first_iteration_done=lambda: callback(
+                                                        CallbackCode.status,
+                                                        'calculating phams',
+                                                        1, 2))
+                        except MemoryError:
                             # not enough ram
                             callback(CallbackCode.out_of_memory_error)
                             cnx.rollback()
                             return False
 
                         original_phams = _read_phams(cursor)
-                        pham_id_to_gene_ids = _assign_pham_ids(pham_id_to_gene_ids, original_phams)
+                        pham_id_to_gene_ids = _assign_pham_ids(
+                                                        pham_id_to_gene_ids,
+                                                        original_phams)
 
                         # assign colors to the phams
                         original_colors = _read_pham_colors(cursor)
-                        pham_id_to_color = _assign_pham_colors(pham_id_to_gene_ids, original_colors)
+                        pham_id_to_color = _assign_pham_colors(
+                                                        pham_id_to_gene_ids,
+                                                        original_colors)
 
                         # clear old phams and colors from database
                         # write new phams and colors to database
                         cursor.execute('DELETE FROM pham')
-                        cursor.execute('DELETE FROM pham_color')
 
-                        for pham_id, gene_ids in pham_id_to_gene_ids.iteritems():
+                        for pham_id, color in pham_id_to_color.items():
+                            cursor.execute("INSERT INTO pham (PhamID, Color) "
+                                           f"VALUES ({pham_id}, '{color}')")
+
+                        for pham_id, gene_ids in pham_id_to_gene_ids.items():
                             for gene_id in gene_ids:
-                                cursor.execute('''
-                                               INSERT INTO pham(GeneID, name)
-                                               VALUES (%s, %s)
-                                               ''', (gene_id, pham_id)
-                                               )
+                                cursor.execute(
+                                        f"UPDATE gene SET PhamID = {pham_id} "
+                                        f"WHERE GeneID = '{gene_id}'")
 
-                        for pham_id, color in pham_id_to_color.iteritems():
-                            cursor.execute('''
-                                           INSERT INTO pham_color(name, color)
-                                           VALUES (%s, %s)
-                                           ''', (pham_id, color))
                     else:
                         # there are no genes in the database
                         # clear all phams and colors from database
                         cursor.execute('DELETE FROM pham')
-                        cursor.execute('DELETE FROM pham_color')
 
             if cdd_search and len(new_gene_ids):
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
@@ -502,10 +508,10 @@ def export(server, identifier, filepath):
         <filename>.version
         <filename>.md5sum
     """
-    directory = os.path.dirname(filepath)
-    base_path = '.'.join(filepath.split('.')[:-1])  # remove extension from filename
-    version_filename = f"{base_path}.version"
-    checksum_filename = "{base_path}.md5sum"
+    directory = filepath.parent
+    base_path = filepath.with_suffix("")  # remove extension from filename
+    version_filename = base_path.with_suffix(".version")
+    checksum_filename = base_path.with_suffix(".md5sum")
 
     if not query.database_exists(server.alchemist, identifier):
         raise DatabaseDoesNotExistError(f"No such database {identifier}.")
@@ -517,24 +523,24 @@ def export(server, identifier, filepath):
     if os.path.exists(checksum_filename):
         raise IOError('File already exists: {}'.format(checksum_filename))
 
-    if directory != "" and not os.path.exists(directory):
-        os.makedirs(directory)
+    directory.mkdir(exist_ok=True)
 
     version = query.version_number(server.alchemist)
-    fileio.write_database(server.alchemist, version, filepath)
+    fileio.write_database(server.alchemist, version, directory,
+                          db_name=base_path.name)
 
     # calculate checksum
     m = hashlib.md5()
     with open(filepath, 'rb') as sql_file:
         while True:
             data = sql_file.read(8192)
-            if data == "":
+            if not data:
                 break
             m.update(data)
 
     # write .md5sum file
     checksum = m.hexdigest()
-    with open(checksum_filename, "w") as out_file:
+    with checksum_filename.open(mode="w") as out_file:
         out_file.write(f"{checksum}  {filepath}\n")
 
 
@@ -568,19 +574,19 @@ class _PhamIdFinder(object):
         """
         # build helper data structures
         self.original_genes = set()
-        for genes in original_phams.itervalues():
+        for genes in original_phams.values():
             self.original_genes.update(genes)
 
         self.genes = set()
-        for genes in phams.itervalues():
+        for genes in phams.values():
             self.genes.update(genes)
 
         self.original_genes_to_pham_id = {}
-        for pham_id, genes in original_phams.iteritems():
+        for pham_id, genes in original_phams.items():
             self.original_genes_to_pham_id[genes] = pham_id
 
         self.original_gene_to_pham_id = {}
-        for pham_id, genes in original_phams.iteritems():
+        for pham_id, genes in original_phams.items():
             for gene_id in genes:
                 self.original_gene_to_pham_id[gene_id] = pham_id
 
@@ -831,7 +837,8 @@ def _update_schema(cnx):
     cnx.commit()
 
 
-def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table, other_feild):
+def _migrate_foreign_key(cursor, this_table, constraint, this_feild,
+                         other_table, other_feild):
     """Replace a foreign key constraint with one which specifies to cascade
     on delete and update.
     """
@@ -842,12 +849,14 @@ def _migrate_foreign_key(cursor, this_table, constraint, this_feild, other_table
                    ADD CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} ({})
                    ON UPDATE CASCADE
                    ON DELETE CASCADE
-                   '''.format(this_table, constraint, this_feild, other_table, other_feild))
+                   '''.format(this_table, constraint, this_feild, other_table,
+                              other_feild))
 
 
 def _drop_foreign_key(cursor, table, constraint):
     try:
-        cursor.execute('ALTER TABLE {} DROP FOREIGN KEY {}'.format(table, constraint))
+        cursor.execute('ALTER TABLE {} DROP FOREIGN KEY {}'.format(
+                                                            table, constraint))
     except mysql.connector.errors.Error as e:
         if e.errno == errorcode.ER_ERROR_ON_RENAME:
             # the constraint did not already exist
@@ -868,10 +877,10 @@ def _read_phams(cursor):
     """
     phams = {}
     cursor.execute("SELECT PhamID, GeneID FROM gene")
-    for pham_id, gene_id in cursor:
-        if pham_id not in phams:
-            phams[pham_id] = set()
-        phams[pham_id].add(gene_id)
+    results = cursor.fetchall()
+    for pham_id, gene_id in results:
+        pham_set = phams.get(pham_id, set())
+        pham_set.add(gene_id)
 
     return phams
 
@@ -887,19 +896,19 @@ def _assign_pham_ids(phams, original_phams):
     Returns a dictionary mapping pham_id to a frozenset of gene ids.
     """
     # convert to frozen sets
-    for key, value in phams.iteritems():
+    for key, value in phams.items():
         phams[key] = frozenset(value)
-    for key, value in original_phams.iteritems():
+    for key, value in original_phams.items():
         original_phams[key] = frozenset(value)
 
     final_phams = {}
     next_id = 1
     if len(original_phams):
-        next_id = max(original_phams.iterkeys()) + 1
+        next_id = max(original_phams.keys()) + 1
 
     id_finder = _PhamIdFinder(phams, original_phams)
 
-    for genes in phams.itervalues():
+    for genes in phams.values():
         original_pham_id = id_finder.find_original_pham_id(genes)
         if original_pham_id is None:
             original_pham_id = next_id
@@ -926,7 +935,7 @@ def _assign_pham_colors(phams, original_colors):
     original_colors is a dictionary mapping pham_id to color.
     """
     pham_colors = {}
-    for pham_id, genes in phams.iteritems():
+    for pham_id, genes in phams.items():
         pham_colors[pham_id] = original_colors.get(pham_id, _make_color(genes))
     return pham_colors
 
@@ -946,6 +955,8 @@ def _make_color(gene_ids):
     sat = random.uniform(0.5, 1)
     val = random.uniform(0.8, 1)
 
-    red, green, blue = colorsys.hsv_to_rgb(hue, sat ,val)
-    hexcode = '#%02x%02x%02x' % (red * 255, green * 255, blue * 255)
+    red, green, blue = colorsys.hsv_to_rgb(hue, sat, val)
+    hexcode = '#%02x%02x%02x' % (int(red) * 255,
+                                 int(green) * 255,
+                                 int(blue) * 255)
     return hexcode

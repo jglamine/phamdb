@@ -1,72 +1,12 @@
 import datetime
+from pathlib import Path
 import os
 
 from flask import (current_app)
 
 import pham
 from webphamerator.app.sqlalchemy_ext import models
-# from webphamerator.app.celery_ext import celery as celery_app
-
-
-# @celery_app.task()
-def create_database(job_id):
-    db = models.db
-
-    # get job record from the database
-    job_record = (db.session.query(models.Job)
-                  .filter(models.Job.id == job_id)
-                  .first())
-
-    # get database record from the database
-    database_record = (db.session.query(models.Database)
-                       .filter(
-                            models.Database.id == job_record.database_id)
-                       .first())
-
-    job_record.start_time = datetime.datetime.utcnow()
-    job_record.modified = datetime.datetime.utcnow()
-    job_record.seen = False
-    job_record.status_code = 'running'
-    # job_record.type_code = self.type_code
-    # job_record.task_id = self.request.id
-
-    genbank_paths = [r.filename for r in job_record.genbank_files_to_add.all()]
-    # organism_ids = \
-    # [r.organism_id for r in job_record.organism_ids_to_delete.all()]
-
-    # update job and database with status, status_message, start_time,
-    # modified
-    db.session.commit()
-
-    observer = CallbackObserver(job_id)
-    print("Creating actual database...")
-    server = pham.db.DatabaseServer.from_url(
-                            current_app.config['SQLALCHEMY_DATABASE_URI'])
-    success = pham.db.create(server, job_record.database_id,
-                             genbank_files=genbank_paths,
-                             cdd_search=database_record.cdd_search,
-                             callback=observer.handle_call)
-    if not success:
-        raise RuntimeError
-
-    # export database dump
-    path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
-                        database_record.name_slug)
-    # delete old dump
-    try:
-        os.remove(path + '.sql')
-    except OSError:
-        pass
-    try:
-        os.remove(path + '.md5sum')
-    except OSError:
-        pass
-    try:
-        os.remove(path + '.version')
-    except OSError:
-        pass
-
-    pham.db.export(server, database_record.mysql_name(), path + '.sql')
+from webphamerator.app.celery_ext import celery as celery_app
 
 
 class DatabaseTaskHandler:
@@ -80,6 +20,9 @@ class DatabaseTaskHandler:
         self._CreatorMaker = None
         self._ModifierMaker = None
 
+        self._create = None
+        self._modify = None
+
     def init_app(self, app, celery):
         TaskBase = celery.Task
 
@@ -87,36 +30,47 @@ class DatabaseTaskHandler:
         self._celery = celery
 
         class ContextTask(TaskBase):
+            abstract = True
+
             def __call__(self, *args, **kwargs):
                 def __call__(self, *args, **kwargs):
                     with app.app_context():
                         return TaskBase.__call__(self, *args, **kwargs)
 
         self._context_task_maker = ContextTask
+        self.build_bases()
+        self.build_createtask()
+        self.build_modifytask()
         self._initialized = True
 
     @property
-    def context_task(self, *args):
+    def context_task(self, *args, **kwargs):
         if not self._initialized:
             raise NotInitializedError("Task handler has not been initialzied "
                                       "with a Celery or Flask application.")
 
-        return self._context_task_maker(*args)
+        return self._context_task_maker(*args, **kwargs)
 
     @property
     def create(self):
-        return self.build_createtask()
+        if self._create is None:
+            self.build_createtask()
+
+        return self._create
 
     @property
     def modify(self):
-        return self.build_modifytask()
+        if self._modify is None:
+            self.build_modifytask()
+
+        return self._modify
 
     def build_basemaker(self):
         if self._celery is None:
             raise AttributeError("Task handler missing valid Celery object.")
 
         class _BaseDatabaseTask(self._context_task_maker):
-            name = "base_database_task"
+            name = "webphamerator.app.celery_ext.tasks.base_database_task"
             success_message = None
             type_code = None
 
@@ -197,7 +151,7 @@ class DatabaseTaskHandler:
                     pass
 
                 pham.db.export(self.server, database_record.mysql_name(),
-                               path + '.sql')
+                               Path(path + ".sql"))
 
             def on_failure(self, exc, task_id, args, kwargs, einfo):
                 job_id = args[0]
@@ -313,7 +267,7 @@ class DatabaseTaskHandler:
 
         task = self._CreatorMaker()
         registered_task = self._celery.register_task(task)
-        return registered_task
+        self._create = registered_task
 
     def build_modifytask(self):
         if self._ModifierMaker is None:
@@ -321,7 +275,7 @@ class DatabaseTaskHandler:
 
         task = self._ModifierMaker()
         registered_task = self._celery.register_task(task)
-        return registered_task
+        self._modify = registered_task
 
     def build_bases(self):
         if self._BaseTaskClass is None:
@@ -330,11 +284,79 @@ class DatabaseTaskHandler:
         if self._CreatorMaker is None:
             self.build_creatormaker()
 
-        if self.ModifierMaker is None:
+        if self._ModifierMaker is None:
             self.build_modifiermaker()
 
 
 database_farmer = DatabaseTaskHandler()
+
+
+@celery_app.task
+def create_database(job_id):
+    print("Running job...")
+    # get job record from the database
+    job_record = get_job(job_id)
+    database_record = get_database(job_record.database_id)
+    job_record.start_time = datetime.datetime.utcnow()
+    job_record.modified = datetime.datetime.utcnow()
+    job_record.seen = False
+    job_record.status_code = 'running'
+    job_record.type_code = "create"
+    # job_record.task_id = self.request.id
+
+    genbank_paths = [r.filename for r in
+                     job_record.genbank_files_to_add.all()]
+    # organism_ids = [r.organism_id for r in
+    #                job_record.organism_ids_to_delete.all()]
+
+    # update job and database with status, status_message,
+    # start_time, modified
+    models.db.session.commit()
+
+    observer = CallbackObserver(job_id)
+    server = pham.db.DatabaseServer.from_url(current_app.config[
+                                             'SQLALCHEMY_DATABASE_URI'])
+
+    print("Calling main job function...")
+    success = pham.db.create(server, database_record.mysql_name(),
+                             genbank_files=genbank_paths,
+                             cdd_search=database_record.cdd_search,
+                             callback=observer.handle_call)
+
+    if not success:
+        raise RuntimeError
+
+    # export database dump
+    path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
+                        database_record.name_slug)
+    # delete old dump
+    try:
+        os.remove(path + '.sql')
+    except OSError:
+        pass
+    try:
+        os.remove(path + '.md5sum')
+    except OSError:
+        pass
+    try:
+        os.remove(path + '.version')
+    except OSError:
+        pass
+
+    pham.db.export(server, database_record.mysql_name(),
+                   Path(path + ".sql"))
+
+
+def get_job(job_id):
+    return (models.db.session.query(models.Job)
+            .filter(models.Job.id == job_id)
+            .first())
+
+
+def get_database(database_id):
+    return (models.db.session.query(models.Database)
+            .filter(models.Database.id == database_id)
+            .first())
 
 
 class CallbackObserver(object):

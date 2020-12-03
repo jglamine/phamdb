@@ -209,7 +209,8 @@ class _PhageReader(object):
 
         for feature in self._record.features:
             if feature.type == 'source':
-                self._read_legacy_source_record(feature)
+                if self.phage_id is None:
+                    self._read_legacy_source_record(feature)
 
                 # The `pham_reader` tag is set when exporting phages.
                 # It tells the parser to ignore errors related to
@@ -311,8 +312,8 @@ class _PhageReader(object):
                 gene.gene_id = 'auto_gp{}'.format(id_index)
                 id_index += 1
 
-            if not gene.gene_id.startswith('{}:'.format(self.phage_id)):
-                gene.gene_id = '{}:{}'.format(self.phage_id, gene.gene_id)
+            if not gene.gene_id.startswith('{}'.format(self.phage_id)):
+                gene.gene_id = '{}_CDS_{}'.format(self.phage_id, index)
 
             if gene.gene_id in gene_ids:
                 self._add_error(ErrorCode.duplicate_gene_id,
@@ -428,7 +429,6 @@ class GeneReader(object):
     def to_db_object(self):
         """Convert to a `db_object.Gene` instance.
         """
-
         return pham.db_object.Gene(
                     self.gene_id, self.notes, self.start, self.stop,
                     self.length, self._gene_sequence, self.translation,
@@ -439,6 +439,9 @@ class GeneReader(object):
     def _read_gene_id(self):
         if 'locus_tag' in self._feature.qualifiers:
             self.gene_id = self._feature.qualifiers['locus_tag'][0]
+
+        if self.gene_id is None:
+            self.gene_id = self._feature.id
 
         if self.gene_id is None:
             for ref in self._feature.qualifiers.get('db_xref', []):
