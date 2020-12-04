@@ -35,11 +35,11 @@ def toclocktime(timedelta):
         minutes = 0
         seconds = 0
     else:
-        hours = total_seconds / 3600
+        hours = total_seconds // 3600
         if (total_seconds % 3600) == 0:
             minutes = 0
         else:
-            minutes = (total_seconds % 3600) / 60
+            minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
 
     return '{0:02d}:{1:02d}:{2:02d}'.format(hours, minutes, seconds)

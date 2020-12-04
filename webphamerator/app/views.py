@@ -1,7 +1,7 @@
 from flask import (
         render_template, abort, request, url_for, redirect,
         send_from_directory, make_response, session, current_app, Blueprint)
-from webphamerator.app.celery_ext import celery
+from webphamerator.app.celery_ext.celery_app import celery
 from webphamerator.app import auth
 from webphamerator.app.sqlalchemy_ext import (db, models)
 import pham.db
@@ -65,6 +65,8 @@ def databases():
         models.Database.visible is True).order_by(
                                         models.Database.display_name).all())
 
+    print(dbs)
+
     return render_template('databases.html',
                            title='Databases',
                            databases=dbs,
@@ -107,6 +109,8 @@ def database(db_id):
     server = pham.db.DatabaseServer.from_url(
                                 current_app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
+    mysql_name = database.mysql_name()
+    print(mysql_name)
     for phage in pham.db.list_organisms(server, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,

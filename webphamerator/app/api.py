@@ -7,9 +7,9 @@ import pham.db
 import flask
 from flask import (abort, Blueprint, current_app, request)
 from webphamerator.app import sqlalchemy_ext as sqlext
-from webphamerator.app import (filters, celery_ext)
-from webphamerator.app.sqlalchemy_ext import models
+from webphamerator.app import filters
 from webphamerator.app.celery_ext import tasks
+from webphamerator.app.sqlalchemy_ext import models
 
 bp = Blueprint("api", __name__)
 
@@ -35,8 +35,6 @@ def new_database():
         412: POST data missing a required property
     """
     # with current_app.app_context():
-    database_farmer = tasks.database_farmer
-
     json_data = request.get_json()
     errors = []
 
@@ -122,16 +120,8 @@ def new_database():
         sqlext.db.session.commit()
 
     if not test:
-        # database_farmer.create.delay(job_id)
-        # task = database_farmer.create
-        # task.run (job_id)
-
-        # task = celery_ext.celery.task()(tasks.create_database)
-        # celery_ext.celery.register_task(task)
-        # task(job_id)
-
-        tasks.create_database.delay(job_id)
-        print("Queued job...")
+        result = tasks.create_database.delay(job_id)
+        result.backend
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201

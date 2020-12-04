@@ -1,8 +1,8 @@
 import os
 from flask import (Flask)
 from webphamerator.app import (
-                    filters, auth, views, api, celery_ext, sqlalchemy_ext)
-from webphamerator.app.celery_ext import tasks
+                    filters, auth, views, api, sqlalchemy_ext)
+from webphamerator.app.celery_ext import celery_utils
 
 
 PKG_NAME = "PhamDB"
@@ -21,17 +21,15 @@ def create_app(app_name=PKG_NAME, **kwargs):
     celery = kwargs.get("celery")
     if celery is not None:
         with app.app_context():
-            celery_ext.init_celery(celery, app)
-            tasks.database_farmer.init_app(app, celery_ext.celery)
+            celery_utils.init_celery(celery, app)
 
     with app.app_context():
         sqlalchemy_ext.db.init_app(app)
-        celery_ext.init_celery(celery_ext.celery, app)
 
         app.jinja_env.filters["replaceifequal"] = filters.replaceifequal
         app.jinja_env.filters["humandate"] = filters.humandate
         app.jinja_env.filters["isodate"] = filters.isodate
-        app.jinja_env.filters["toclocktime"] = filters.isodate
+        app.jinja_env.filters["toclocktime"] = filters.toclocktime
 
         app.register_blueprint(auth.bp)
         app.register_blueprint(api.bp)

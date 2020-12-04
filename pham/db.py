@@ -649,7 +649,8 @@ def _execute_sql_file(alchemist, filepath):
 
 # API DATA RETRIEVAL
 class DatabaseSummaryModel(object):
-    def __init__(self, organism_count, pham_count, orpham_count, conserved_domain_hit_count):
+    def __init__(self, organism_count, pham_count, orpham_count,
+                 conserved_domain_hit_count):
         self.number_of_organisms = organism_count
         self.number_of_phams = pham_count
         self.number_of_orphams = orpham_count
@@ -662,12 +663,17 @@ def summary(server, identifier):
     if not query.database_exists(server.alchemist, identifier):
         raise DatabaseDoesNotExistError(f"No such database: {identifier}")
 
-    phage_count = query.count_phages(server.alchemist)
-    pham_count = query.count_phams(server.alchemist)
-    orpham_count = query.count_orphan_genes(server.alchemist)
-    domain_hits = query.count_domains(server.alchemist)
+    temp_alchemist = AlchemyHandler()
+    temp_alchemist.engine = server.alchemist.engine
+    temp_alchemist.database = identifier
 
-    return DatabaseSummaryModel(phage_count, pham_count, orpham_count, domain_hits)
+    phage_count = query.count_phages(temp_alchemist)
+    pham_count = query.count_phams(temp_alchemist)
+    orpham_count = query.count_orphan_genes(temp_alchemist)
+    domain_hits = query.count_domains(temp_alchemist)
+
+    return DatabaseSummaryModel(phage_count, pham_count, orpham_count,
+                                domain_hits)
 
 
 class OrganismSummaryModel(object):
@@ -685,10 +691,14 @@ def list_organisms(server, identifier):
     Raises: DatabaseDoesNotExistError
     """
     if not query.database_exists(server.alchemist, identifier):
-        raise DatabaseDoesNotExistError("No such database: {id}")
+        raise DatabaseDoesNotExistError(f"No such database: {id}")
 
-    phage_obj = server.alchemist.metadata.tables["phage"]
-    gene_obj = server.alchemist.metedata.tables["gene"]
+    temp_alchemist = AlchemyHandler()
+    temp_alchemist.engine = server.alchemist.engine
+    temp_alchemist.database = identifier
+
+    phage_obj = temp_alchemist.metadata.tables["phage"]
+    gene_obj = temp_alchemist.metadata.tables["gene"]
     phageid_obj = phage_obj.c.PhageID
     name_obj = phage_obj.c.Name
     geneid_obj = gene_obj.c.GeneID
@@ -701,8 +711,8 @@ def list_organisms(server, identifier):
 
     organisms = []
     for data_dict in organism_data:
-        organisms.append(OrganismSummaryModel(data_dict["Name"], 
-                                              data_dict["PhageID"], 
+        organisms.append(OrganismSummaryModel(data_dict["Name"],
+                                              data_dict["PhageID"],
                                               data_dict["Count(GeneID)"]))
 
     return organisms
