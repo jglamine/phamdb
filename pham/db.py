@@ -45,13 +45,13 @@ _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
 
 CallbackCode = Enum("CallbackCode",
-                                    "status "
-                                    "genbank_format_error "
-                                    "duplicate_organism "
-                                    "duplicate_genbank_files "
-                                    "file_does_not_exist "
-                                    "gene_id_already_exists "
-                                    "out_of_memory_error")
+                    "status "
+                    "genbank_format_error "
+                    "duplicate_organism "
+                    "duplicate_genbank_files "
+                    "file_does_not_exist "
+                    "gene_id_already_exists "
+                    "out_of_memory_error")
 
 
 # ERRORS
@@ -93,31 +93,35 @@ class _CallbackObserver(object):
                 messages.append(message_for_callback(code, *args, **kwargs))
 
         if genbank_format_errors:
-            messages.append('{} errors occurred while validating genbank files.'.format(genbank_format_errors))
-        
+            messages.append(f"{genbank_format_errors} errors occurred "
+                            "while validating genbank files.")
+
         return messages
 
 
 def message_for_callback(code, *args, **kwargs):
-    """Return a human readable string for callback messages from 'create' and 'rebuild'.
+    """Return a human readable string for callback messages from
+       'create' and 'rebuild'.
     """
     message = None
     if code == CallbackCode.genbank_format_error:
         phage_error = args[0]
-        message = 'Error validating genbank file:' + phage_error.message()
+        message = "Error validating genbank file:" + phage_error.message()
     elif code == CallbackCode.duplicate_organism:
         phage_id = args[0]
-        message = 'Adding phages resulted in duplicate phage. ID: {}'.format(phage_id)
+        message = f"Adding phages resulted in duplicate phage. ID: {phage_id}"
     elif code == CallbackCode.duplicate_genbank_files:
         phage_id = args[0]
-        message = 'The same genbank file occurs twice. Phage ID: {}'.format(phage_id)
+        message = "The same genbank file occurs twice. Phage ID: {phage_id}"
     elif code == CallbackCode.file_does_not_exist:
-        message = 'Unable to find uploaded genbank file.'
+        message = "Unable to find uploaded genbank file."
     elif code == CallbackCode.gene_id_already_exists:
         phage_id = args[0]
-        message = 'Unable to add phage: ID: {}. A gene in this phage occurs elsewhere in the database.'.format(phage_id)
+        message = (f"Unable to add phage: ID: {phage_id}. "
+                   "A gene in this phage occurs elsewhere in the database.")
     elif code == CallbackCode.out_of_memory_error:
-        message = 'Insufficient memory: This application requires at least 2 GB of RAM.'
+        message = ("Insufficient memory: "
+                   "This application requires at least 2 GB of RAM.")
     return message
 
 
@@ -144,7 +148,8 @@ class DatabaseServer(object):
     @classmethod
     def from_url(cls, url, pool_size=2):
         result = urlparse(url)
-        return cls(result.hostname, result.username, result.password, pool_size=pool_size)
+        return cls(result.hostname, result.username, result.password,
+                   pool_size=pool_size)
 
     def get_credentials(self):
         host = self._dbconfig['host']
@@ -353,10 +358,12 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
                 valid = False
                 for phage_id in duplicate_phage_ids_on_server:
                     filename = phage_id_to_filenames[phage_id][0]
-                    callback(CallbackCode.duplicate_organism, phage_id, filename)
+                    callback(CallbackCode.duplicate_organism, phage_id,
+                             filename)
                 for phage_id in duplicate_phage_ids:
                     filenames = phage_id_to_filenames[phage_id]
-                    callback(CallbackCode.duplicate_genbank_files, phage_id, filenames)
+                    callback(CallbackCode.duplicate_genbank_files, phage_id,
+                             filenames)
 
             if not valid:
                 cnx.rollback()
@@ -368,7 +375,6 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
             # update version number
             _increment_version(cnx)
 
-            
             # delete organisms
             for index, phage_id in enumerate(organism_ids_to_delete):
                 callback(CallbackCode.status, 'deleting organisms', index,
@@ -462,7 +468,8 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
                         cursor.execute('DELETE FROM pham')
 
             if cdd_search and len(new_gene_ids):
-                callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
+                callback(CallbackCode.status,
+                         'searching conserved domain database', 0, 1)
                 # search for genes in conserved domain database
                 # only search for new genes
                 conserveddomain.find_domains(cnx, new_gene_ids,
@@ -576,7 +583,8 @@ class _PhamIdFinder(object):
     def __init__(self, phams, original_phams):
         """
         phams is a dictionary mapping pham_id to a frozenset of gene ids
-        original_phams is a frozenset mapping pham_id to a frozenset of gene ids
+        original_phams is a frozenset mapping pham_id to a frozenset of gene
+        ids
         """
         # build helper data structures
         self.original_genes = set()
@@ -649,7 +657,7 @@ def _execute_sql_file(alchemist, filepath):
         command_string = " ".join([command_string, alchemist.database])
 
     command_list = shlex.split(command_string)
-    process = subprocess.check_call(command_list, stdin=file_handle)
+    subprocess.check_call(command_list, stdin=file_handle)
     file_handle.close()
 
 
@@ -727,7 +735,8 @@ def list_organisms(server, identifier):
 # REDUNDANT PIPELINE HELPER FUNCTIONS
 # Used to set up pipeline like rebuild or load
 def _is_schema_valid(cnx):
-    """Return True if the databases has the tables required by a Phamerator database.
+    """Return True if the databases has the tables required by a Phamerator
+    database.
 
     Checks for these tables:
         domain
@@ -776,7 +785,9 @@ def _update_schema(cnx):
                            ''')
 
         # increase VARCHAR length
-        # select character_maximum_length from information_schema.columns where table_schema = 'test_database' and table_name = 'gene' and column_name = 'name';
+        # select character_maximum_length from information_schema.columns
+        # where table_schema = 'test_database' and table_name = 'gene'
+        # and column_name = 'name';
         cursor.execute('''
                        SELECT character_maximum_length
                        FROM information_schema.columns
@@ -791,17 +802,22 @@ def _update_schema(cnx):
             cursor.execute('ALTER TABLE gene MODIFY PhageID VARCHAR(127)')
             cursor.execute('ALTER TABLE gene MODIFY Name VARCHAR(127)')
             cursor.execute('ALTER TABLE gene MODIFY LeftNeighbor VARCHAR(127)')
-            cursor.execute('ALTER TABLE gene MODIFY RightNeighbor VARCHAR(127)')
-            cursor.execute('ALTER TABLE gene_domain MODIFY GeneID VARCHAR(127)')
-            cursor.execute('ALTER TABLE gene_domain MODIFY hit_id VARCHAR(127)')
+            cursor.execute(
+                        'ALTER TABLE gene MODIFY RightNeighbor VARCHAR(127)')
+            cursor.execute(
+                        'ALTER TABLE gene_domain MODIFY GeneID VARCHAR(127)')
+            cursor.execute(
+                        'ALTER TABLE gene_domain MODIFY hit_id VARCHAR(127)')
             cursor.execute('ALTER TABLE node MODIFY hostname VARCHAR(127)')
             cursor.execute('ALTER TABLE phage MODIFY PhageID VARCHAR(127)')
             cursor.execute('ALTER TABLE phage MODIFY Name VARCHAR(127)')
             cursor.execute('ALTER TABLE phage MODIFY Isolated VARCHAR(127)')
             cursor.execute('ALTER TABLE phage MODIFY HostStrain VARCHAR(127)')
             cursor.execute('ALTER TABLE pham MODIFY GeneID VARCHAR(127)')
-            cursor.execute('ALTER TABLE scores_summary MODIFY query VARCHAR(127)')
-            cursor.execute('ALTER TABLE scores_summary MODIFY subject VARCHAR(127)')
+            cursor.execute(
+                        'ALTER TABLE scores_summary MODIFY query VARCHAR(127)')
+            cursor.execute(
+                    'ALTER TABLE scores_summary MODIFY subject VARCHAR(127)')
 
         # add ON DELETE CASCADE ON UPDATE CASCADE constraints
         cursor.execute('''
@@ -814,12 +830,20 @@ def _update_schema(cnx):
             # some tables have the wrong name for `pham_ibfk_1`
             _drop_foreign_key(cursor, 'pham', 'pham_ibfk_2')
 
-            _migrate_foreign_key(cursor, 'gene', 'gene_ibfk_1', 'PhageID', 'phage', 'PhageID')
-            _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_1', 'GeneID', 'gene', 'GeneID')
-            _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_2', 'hit_id', 'domain', 'hit_id')
-            _migrate_foreign_key(cursor, 'pham', 'pham_ibfk_1', 'GeneID', 'gene', 'GeneID')
-            _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_1', 'query', 'gene', 'GeneID')
-            _migrate_foreign_key(cursor, 'scores_summary', 'scores_summary_ibfk_2', 'subject', 'gene', 'GeneID')
+            _migrate_foreign_key(cursor, 'gene', 'gene_ibfk_1', 'PhageID',
+                                 'phage', 'PhageID')
+            _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_1',
+                                 'GeneID', 'gene', 'GeneID')
+            _migrate_foreign_key(cursor, 'gene_domain', 'gene_domain_ibfk_2',
+                                 'hit_id', 'domain', 'hit_id')
+            _migrate_foreign_key(cursor, 'pham', 'pham_ibfk_1', 'GeneID',
+                                 'gene', 'GeneID')
+            _migrate_foreign_key(
+                            cursor, 'scores_summary', 'scores_summary_ibfk_1',
+                            'query', 'gene', 'GeneID')
+            _migrate_foreign_key(
+                            cursor, 'scores_summary', 'scores_summary_ibfk_2',
+                            'subject', 'gene', 'GeneID')
 
         # clear unnecessary tables
         # to maintain backwards compatibility, the empty tables are kept.
@@ -843,8 +867,8 @@ def _update_schema(cnx):
         cdd_column_exists = cursor.fetchall()[0][0] == 1
         if not cdd_column_exists:
             cursor.execute('''
-                ALTER TABLE `gene`
-                ADD COLUMN `cdd_status` TINYINT(1) NOT NULL AFTER `blast_status`
+            ALTER TABLE `gene`
+            ADD COLUMN `cdd_status` TINYINT(1) NOT NULL AFTER `blast_status`
             ''')
             cursor.execute('''
                 UPDATE gene

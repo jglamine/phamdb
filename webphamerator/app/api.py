@@ -120,7 +120,7 @@ def new_database():
         sqlext.db.session.commit()
 
     if not test:
-        tasks.database_task.delay(job_id, "create")
+        tasks.create_database.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
@@ -144,7 +144,7 @@ def import_sql_dump():
     name = json_data.get('name')
     description = json_data.get('description')
     filename = json_data.get('sql_dump_id')
-    test = json_data.get('test', False)
+    json_data.get('test', False)  # test =
 
     count = sqlext.db.session.query(models.Database).filter(
                                 models.Database.display_name == name).count()
@@ -158,7 +158,8 @@ def import_sql_dump():
         return flask.jsonify(errors=errors), 400
 
     # create database from sql dump
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     database_id = models.Database.mysql_name_for(name)
 
     try:
@@ -178,20 +179,21 @@ def import_sql_dump():
     database_summary = pham.db.summary(server, database_id)
 
     # create database record
-    database_record = models.Database(display_name=name,
-                                      name_slug=models.Database.phamerator_name_for(name),
-                                      description=description,
-                                      locked=False,
-                                      visible=True,
-                                      number_of_organisms=database_summary.number_of_organisms,
-                                      number_of_orphams=database_summary.number_of_orphams,
-                                      number_of_phams=database_summary.number_of_phams,
-                                      cdd_search=database_summary.number_of_conserved_domain_hits > 0)
+    database_record = models.Database(
+                    display_name=name,
+                    name_slug=models.Database.phamerator_name_for(name),
+                    description=description, locked=False, visible=True,
+                    number_of_organisms=database_summary.number_of_organisms,
+                    number_of_orphams=database_summary.number_of_orphams,
+                    number_of_phams=database_summary.number_of_phams,
+                    cdd_search=(
+                        database_summary.number_of_conserved_domain_hits > 0))
     sqlext.db.session.add(database_record)
     sqlext.db.session.commit()
 
     # export database dump
-    path = os.path.join(current_app.config['DATABASE_DUMP_DIR'], database_record.name_slug)
+    path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
+                        database_record.name_slug)
     # delete old dump
     try:
         os.remove(path + '.sql')
@@ -312,7 +314,7 @@ def modify_database(database_id):
         database_record.locked = True
         sqlext.db.session.commit()
 
-        tasks.database_task.delay(job_id, "modify")
+        tasks.modify_database.delay(job_id)
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200
@@ -332,46 +334,59 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
                              .filter(models.GenbankFile.id.in_(file_ids))
                              .count())
         if len(file_ids) != file_record_count:
-            errors.append('{} genbank files failed to upload.'.format(len(file_ids) - file_record_count))
+            errors.append("{} genbank files failed to upload.".format(
+                                            len(file_ids) - file_record_count))
 
     # copy phages from other databases
     if len(phages_from_other_databases):
         for phage in phages_from_other_databases:
-            phage_id = phage['id']
-            database_id = phage['database']
+            phage_id = phage["id"]
+            database_id = phage["database"]
 
             db_record = (sqlext.db.session.query(models.Database)
                          .filter(models.Database.id == database_id)
                          .first())
             if db_record is None:
-                errors.append('Error importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
+                errors.append(f"Error importing phage `{phage_id}` "
+                              f"from database `{database_id}`: "
+                              "Database does not exist.")
                 continue
 
             # export genbank file
-            with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
-                                             delete=False) as local_handle:
+            with tempfile.NamedTemporaryFile(
+                                dir=current_app.config['GENBANK_FILE_DIR'],
+                                delete=False) as local_handle:
                 local_filename = local_handle.name
                 try:
-                    phage = pham.db.export_to_genbank(server, db_record.mysql_name(), phage_id, local_handle)
+                    phage = pham.db.export_to_genbank(server,
+                                                      db_record.mysql_name(),
+                                                      phage_id, local_handle)
                     file_record = models.GenbankFile(filename=local_filename,
                                                      phage_name=phage.name,
                                                      genes=len(phage.genes),
                                                      gc_content=phage.gc)
-                except pham.db.DatabaseDoesNotExistError as e:
-                    errors.append('Error importing phage `{}` from database `{}`: Database does not exist.'.format(phage_id, database_id))
-                except pham.db.PhageNotFoundError as e:
-                    errors.append('Error importing phage `{}` from database `{}`: Phage does not exist.'.format(phage_id, database_id))
-            
+                except pham.db.DatabaseDoesNotExistError:
+                    errors.append(f"Error importing phage `{phage_id}` "
+                                  f"from database `{database_id}`: "
+                                  "Database does not exist.")
+                except pham.db.PhageNotFoundError:
+                    errors.append(f"Error importing phage `{phage_id}` "
+                                  f"from database `{database_id}`: "
+                                  "Phage does not exist.")
+
             # validate exported file
             phage = pham.genbank.read_file(local_filename)
             if len(phage.errors):
                 try:
                     os.remove(local_filename)
-                except OSError as e:
+                except OSError:
                     pass
-                errors.append('Error importing phage `{}` from database `{}`: Phage data is corrupt.'.format(phage_id, database_id))
+                errors.append(f"Error importing phage `{phage_id}` "
+                              f"from database `{database_id}`: "
+                              "Phage data is corrupt.")
                 for error in phage.errors:
-                    errors.append('Line: {} - {}'.format(error.line_number, error.message()))
+                    errors.append(
+                              f"Line: {error.line_number} - {error.message()}")
             else:
                 sqlext.db.session.add(file_record)
                 sqlext.db.session.commit()
@@ -437,7 +452,7 @@ def list_phages(database_id):
         500: database error
         404: database does not exist
     """
-    errors = list()
+    # errors = list()
 
     database_record = (sqlext.db.session.query(models.Database)
                        .filter(models.Database.id == database_id)
@@ -445,11 +460,12 @@ def list_phages(database_id):
     if database_record is None:
         return 'Database with id {} not found.'.format(database_id), 404
 
-    server = pham.db.DatabaseServer.from_url(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    server = pham.db.DatabaseServer.from_url(
+                                current_app.config['SQLALCHEMY_DATABASE_URI'])
     try:
         phages = pham.db.list_organisms(server, database_record.mysql_name())
-    except pham.db.DatabaseDoesNotExistError as e:
-        return 'Database with id {} not found.'.format(database_id), 500
+    except pham.db.DatabaseDoesNotExistError:
+        return "Database with id {database_id} not found.", 500
 
     phage_dictionaries = []
     for phage in phages:
@@ -493,7 +509,8 @@ def delete_genbank_file(file_id):
         200: file deleted
         404: file not found
     """
-    file_record = sqlext.db.session.query(models.GenbankFile).filter(models.GenbankFile.id == file_id).first()
+    file_record = (sqlext.db.session.query(models.GenbankFile)
+                            .filter(models.GenbankFile.id == file_id).first())
     if file_record is None:
         abort(404)
 
@@ -527,8 +544,9 @@ def new_genbank_file():
     local_filename = None
     try:
         # save it to a file
-        with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
-                                         delete=False) as local_handle:
+        with tempfile.NamedTemporaryFile(
+                                dir=current_app.config['GENBANK_FILE_DIR'],
+                                delete=False) as local_handle:
             local_filename = local_handle.name
             shutil.copyfileobj(file_handle, local_handle)
 
@@ -568,10 +586,10 @@ def new_genbank_file():
         'name': phage.name,
         'phage_id': phage.id,
         'number_of_genes': len(phage.genes),
-        'length': phage.sequence_length, 
+        'length': phage.sequence_length,
         'gc_content': phage.gc
     }
-    
+
     return flask.jsonify(phage=phage_data), 201
 
 
@@ -595,8 +613,9 @@ def upload_file():
     local_filename = None
     try:
         # save it to a file
-        with tempfile.NamedTemporaryFile(dir=current_app.config['GENBANK_FILE_DIR'],
-                                         delete=False) as local_handle:
+        with tempfile.NamedTemporaryFile(
+                                    dir=current_app.config['GENBANK_FILE_DIR'],
+                                    delete=False) as local_handle:
             local_filename = local_handle.name
             shutil.copyfileobj(file_handle, local_handle)
 
@@ -644,7 +663,8 @@ def job_status(job_id):
 
 @bp.route('/api/jobs/<int:job_id>', methods=['POST'])
 def mark_job_as_seen(job_id):
-    job = sqlext.db.session.query(models.Job).filter(models.Job.id == job_id).first()
+    job = (sqlext.db.session.query(models.Job)
+                            .filter(models.Job.id == job_id).first())
     if job is None:
         abort(404)
 

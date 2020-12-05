@@ -13,45 +13,21 @@ DB_SUCCESS = "Completed SQL database transcation."
 DB_FAILURE = "An unexpected error occurred during SQL database transaction."
 
 
-def clean_job(job_record):
-    if job_record.start_time is None:
-        job_record.runtime = (datetime.datetime.utcnow() -
-                              job_record.modified)
-    else:
-        job_record.runtime = (datetime.datetime.utcnow() -
-                              job_record.start_time)
-    job_record.modified = datetime.datetime.utcnow()
-    job_record.seen = False
+# CELERY TASKS
+# -----------------------------------------------------------------------------
 
-    # delete genbank files
-    for file_record in job_record.genbank_files_to_add.all():
-        try:
-            os.remove(file_record.filename)
-        except IOError:
-            pass
-        file_record.filename = None
-
-    models.db.session.commit()
-
-
-def get_server():
-    return pham.db.DatabaseServer.from_url(current_app.config[
-                                           'SQLALCHEMY_DATABASE_URI'])
-
-
-def get_job(job_id):
-    return (models.db.session.query(models.Job)
-            .filter(models.Job.id == job_id)
-            .first())
-
-
-def get_database(database_id):
-    return (models.db.session.query(models.Database)
-            .filter(models.Database.id == database_id)
-            .first())
+@celery_app.task()
+def create_database(job_id):
+    database_task(job_id, "create")
 
 
 @celery_app.task()
+def modify_database(job_id):
+    database_task(job_id, "modify")
+
+
+# DATABASE TASK HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
 def database_success(job_id):
     job_record = get_job(job_id)
     database_record = get_database(job_record.database_id)
@@ -75,7 +51,6 @@ def database_success(job_id):
     clean_job(job_record)
 
 
-@celery_app.task()
 def database_failure(job_id):
     job_record = get_job(job_id)
     database_record = get_database(job_record.database_id)
@@ -89,7 +64,6 @@ def database_failure(job_id):
     clean_job(job_record)
 
 
-@celery_app.task()
 def database_task(job_id, task):
     # get job record from the database
     job_record = get_job(job_id)
@@ -129,7 +103,7 @@ def database_task(job_id, task):
         database_failure(job_id)
         return
 
-    database_success.run(job_id)
+    database_success(job_id)
 
     # export database dump
     path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
@@ -147,6 +121,47 @@ def database_task(job_id, task):
         os.remove(path + '.version')
     except OSError:
         pass
+
+
+# GENERAL HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
+
+def clean_job(job_record):
+    if job_record.start_time is None:
+        job_record.runtime = (datetime.datetime.utcnow() -
+                              job_record.modified)
+    else:
+        job_record.runtime = (datetime.datetime.utcnow() -
+                              job_record.start_time)
+    job_record.modified = datetime.datetime.utcnow()
+    job_record.seen = False
+
+    # delete genbank files
+    for file_record in job_record.genbank_files_to_add.all():
+        try:
+            os.remove(file_record.filename)
+        except IOError:
+            pass
+        file_record.filename = None
+
+    models.db.session.commit()
+
+
+def get_server():
+    return pham.db.DatabaseServer.from_url(current_app.config[
+                                           'SQLALCHEMY_DATABASE_URI'])
+
+
+def get_job(job_id):
+    return (models.db.session.query(models.Job)
+            .filter(models.Job.id == job_id)
+            .first())
+
+
+def get_database(database_id):
+    return (models.db.session.query(models.Database)
+            .filter(models.Database.id == database_id)
+            .first())
 
 
 class CallbackObserver(object):
