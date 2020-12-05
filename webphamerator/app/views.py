@@ -434,10 +434,11 @@ def update_settings():
 
     return redirect(url_for('settings'))
 
-    @bp.route('/db/<path:path>')
-    def download_database(path):
-        return send_from_directory(
-                            current_app.config['DATABASE_DUMP_DIR'], path)
+
+@bp.route('/db/<path:path>')
+def download_database(path):
+    return send_from_directory(
+                        current_app.config['DATABASE_DUMP_DIR'], path)
 
 
 @bp.route('/db')

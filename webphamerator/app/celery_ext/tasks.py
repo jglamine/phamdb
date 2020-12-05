@@ -1,7 +1,8 @@
 import datetime
 import os
+from pathlib import Path
 
-from flask import (current_app)
+from flask import current_app
 
 import pham
 from webphamerator.app.sqlalchemy_ext import models
@@ -108,19 +109,27 @@ def database_task(job_id, task):
     # export database dump
     path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
                         database_record.name_slug)
+    path = Path(path)
+
+    sql_path = path.with_suffix(".sql")
+    md5sum_path = path.with_suffix(".md5sum")
+    version_path = path.with_suffix(".version")
+
     # delete old dump
     try:
-        os.remove(path + '.sql')
+        os.remove(sql_path)
     except OSError:
         pass
     try:
-        os.remove(path + '.md5sum')
+        os.remove(md5sum_path)
     except OSError:
         pass
     try:
-        os.remove(path + '.version')
+        os.remove(version_path)
     except OSError:
         pass
+
+    pham.db.export(server, database_record.mysql_name(), sql_path)
 
 
 # GENERAL HELPER FUNCTIONS

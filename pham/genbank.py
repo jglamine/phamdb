@@ -2,13 +2,12 @@ import re
 from enum import Enum
 
 
-from Bio.Alphabet.IUPAC import IUPACAmbiguousDNA
 import Bio.Seq
 from Bio import SeqIO
 import Bio.SeqFeature
-from Bio.SeqFeature import FeatureLocation, ExactPosition
 import Bio.SeqRecord
 from Bio.Data.CodonTable import TranslationError
+from pdm_utils.functions import flat_files
 
 import pham.db_object
 
@@ -26,70 +25,14 @@ def read_file(filepath):
     return _PhageReader(filepath, translation_table).to_db_object()
 
 
-def write_file(phage, filepath):
+def write_file(gnm, filehandle):
     """Writes a phage to a genbank file.
 
     phage: an instance of `db_object.Phage`.
     filepath: name of the file to write to.
     """
-    sequence = Bio.Seq.Seq(str(phage.sequence), IUPACAmbiguousDNA())
-    features = []  # list of SeqFeatures
-
-    # source feature contains metadata about the phage
-    source_feature = Bio.SeqFeature.SeqFeature(
-                    type='source',
-                    location=FeatureLocation(ExactPosition(0),
-                                             ExactPosition(
-                                                phage.sequence_length)),
-                    qualifiers={
-                        'organism': phage.name,
-                        'db_xref': phage.id,
-                        'lab_host': phage.host_strain,
-                        'isolation_source': phage.isolated,
-                        'pham_reader': 'SKIP_GENE_SEQUENCE_VALIDATION'
-                    })
-    features.append(source_feature)
-
-    # each gene is written as a CDS feature
-    for gene in phage.genes:
-        if gene.orientation == 'F':
-            strand = 1
-        elif gene.orientation == 'R':
-            strand = -1
-        else:
-            strand = 0
-
-        qualifiers = {
-            'gene': gene.name,
-            'note': gene.notes,
-            'db_xref': gene.gene_id,
-            'translation': gene.translation
-        }
-
-        if qualifiers['note'] in ('', None):
-            del qualifiers['note']
-
-        feature = Bio.SeqFeature.SeqFeature(
-                    type='CDS',
-                    location=FeatureLocation(ExactPosition(gene.start),
-                                             ExactPosition(gene.stop)),
-                    strand=strand,
-                    qualifiers=qualifiers)
-        features.append(feature)
-
-    annotations = {
-        'organism': 'Mycobacterium phage {}'.format(phage.name),
-        'accessions': [phage.accension],
-        'comment': phage.notes
-    }
-
-    record = Bio.SeqRecord.SeqRecord(sequence,
-                                     id=phage.accension,
-                                     description=phage.name,
-                                     annotations=annotations,
-                                     features=features
-                                     )
-    SeqIO.write([record], filepath, 'genbank')
+    seqrecord = flat_files.genome_to_seqrecord(gnm)
+    SeqIO.write(seqrecord, filehandle, "gb")
 
 
 class _PhageReader(object):

@@ -558,7 +558,7 @@ def export(server, identifier, filepath):
 
 
 # EXPORT gb pipeline
-def export_to_genbank(server, identifier, organism_id, filename):
+def export_to_genbank(server, identifier, organism_id, filehandle):
     """Download a phage from the database to the given file or file handle.
 
     Returns an instance of `db_object.Phage`.
@@ -568,12 +568,16 @@ def export_to_genbank(server, identifier, organism_id, filename):
     if not query.database_exists(server.alchemist, identifier):
         raise DatabaseDoesNotExistError(f"No such database: {identifier}")
 
-    if not query.phage_exists(server.alchemist, organism_id):
+    temp_alchemist = AlchemyHandler()
+    temp_alchemist.engine = server.alchemist.engine
+    temp_alchemist.database = identifier
+
+    if not query.phage_exists(temp_alchemist, organism_id):
         raise PhageNotFoundError
 
-    gnm = export_db.get_single_genome(server.alchemist, organism_id,
+    gnm = export_db.get_single_genome(temp_alchemist, organism_id,
                                       get_features=True)
-    genbank.write_file(gnm, filename)
+    genbank.write_file(gnm, filehandle)
 
     return gnm
 
