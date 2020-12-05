@@ -70,6 +70,7 @@ def database_success(job_id):
         summary.number_of_organisms
     database_record.number_of_orphams = summary.number_of_orphams
     database_record.number_of_phams = summary.number_of_phams
+    models.db.session.commit()
 
     clean_job(job_record)
 
@@ -89,7 +90,7 @@ def database_failure(job_id):
 
 
 @celery_app.task()
-def create_database(job_id):
+def database_task(job_id, task):
     # get job record from the database
     job_record = get_job(job_id)
     database_record = get_database(job_record.database_id)
@@ -102,8 +103,8 @@ def create_database(job_id):
 
     genbank_paths = [r.filename for r in
                      job_record.genbank_files_to_add.all()]
-    # organism_ids = [r.organism_id for r in
-    #                job_record.organism_ids_to_delete.all()]
+    organism_ids = [r.organism_id for r in
+                    job_record.organism_ids_to_delete.all()]
 
     # update job and database with status, status_message,
     # start_time, modified
@@ -112,15 +113,23 @@ def create_database(job_id):
     observer = CallbackObserver(job_id)
     server = get_server()
 
-    success = pham.db.create(server, database_record.mysql_name(),
-                             genbank_files=genbank_paths,
-                             cdd_search=database_record.cdd_search,
-                             callback=observer.handle_call)
+    if task == "create":
+        success = pham.db.create(server, database_record.mysql_name(),
+                                 genbank_files=genbank_paths,
+                                 cdd_search=database_record.cdd_search,
+                                 callback=observer.handle_call)
+    elif task == "modify":
+        success = pham.db.rebuild(server, database_record.mysql_name(),
+                                  organism_ids_to_delete=organism_ids,
+                                  genbank_files_to_add=genbank_paths,
+                                  cdd_search=database_record.cdd_search,
+                                  callback=observer.handle_call)
 
     if not success:
-        database_failure.run(job_id)
-    else:
-        database_success.run(job_id)
+        database_failure(job_id)
+        return
+
+    database_success.run(job_id)
 
     # export database dump
     path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],

@@ -44,7 +44,7 @@ from pham import query
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
 
-CallbackCode = Enum("CallbackCode", 
+CallbackCode = Enum("CallbackCode",
                                     "status "
                                     "genbank_format_error "
                                     "duplicate_organism "
@@ -223,15 +223,15 @@ def check_rebuild(server, id, organism_ids=None, genbank_files=None):
 
 # PIPELINE FUNCTIONS
 # creates new database and IMPORTs
-def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
-           callback=_default_callback):
+def create(server, identifier, genbank_files=None, cdd_search=True,
+           commit=True, callback=_default_callback):
     """Create a phamerator database.
 
     Status and errors are reported to `callback`. The first argument of each
     callback is an instance of the `CallbackCode` enum.
 
     genbank_files: a list of paths to genbank files.
-    cdd_search (boolean): search for each gene in NCBI conserved domain database.
+    cdd_search (boolean): search for genes in NCBI conserved domain database.
     commit (boolean): Commit changes to the database.
 
     Returns True if the operation succeed, False if it failed.
@@ -252,10 +252,8 @@ def create(server, identifier, genbank_files=None, cdd_search=True, commit=True,
 
     callback(CallbackCode.status, 'initializing database', 1, 2)
 
-
     sql_script_path = os.path.join(_DATA_DIR, 'create_database.sql')
     _execute_sql_file(server.alchemist, sql_script_path)
-
 
     try:
         # insert phages and build phams
@@ -305,6 +303,10 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
         if not query.database_exists(server.alchemist, identifier):
             raise DatabaseDoesNotExistError('No such database: {}'.format(id))
 
+    db_alchemist = AlchemyHandler()
+    db_alchemist.engine = server.alchemist.engine
+    db_alchemist.database = identifier
+
     # open and validate genbank files
     # also detect duplicate phages
     valid = True
@@ -313,7 +315,8 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
     duplicate_phage_ids_on_server = set()
     if genbank_files_to_add is not None:
         for index, path in enumerate(genbank_files_to_add):
-            callback(CallbackCode.status, 'validating genbank files', index, len(genbank_files_to_add))
+            callback(CallbackCode.status, 'validating genbank files',
+                     index, len(genbank_files_to_add))
             try:
                 phage = genbank.read_file(path)
             except IOError:
@@ -321,7 +324,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
                 callback(CallbackCode.file_does_not_exist, path)
                 continue
 
-            #May be redundant, parse genbank records cover??
+            # May be redundant, parse genbank records cover??
             if phage.is_valid():
                 # check for duplicate phages
                 if phage.id in phage_id_to_filenames:
@@ -341,7 +344,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
         try:
             # check for phages which are already on the server
             for phage_id in phage_id_to_filenames:
-                if query.phage_exists(server.alchemist, phage_id):
+                if query.phage_exists(db_alchemist, phage_id):
                     if phage_id not in organism_ids_to_delete:
                         duplicate_phage_ids_on_server.add(phage_id)
 
@@ -365,11 +368,12 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
             # update version number
             _increment_version(cnx)
 
+            
             # delete organisms
             for index, phage_id in enumerate(organism_ids_to_delete):
                 callback(CallbackCode.status, 'deleting organisms', index,
                          len(organism_ids_to_delete))
-                query.delete_phage(server.alchemist, phage_id)
+                query.delete_phage(db_alchemist, phage_id)
 
             # validate and upload genbank files
             if genbank_files_to_add is not None:
@@ -461,7 +465,8 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
                 callback(CallbackCode.status, 'searching conserved domain database', 0, 1)
                 # search for genes in conserved domain database
                 # only search for new genes
-                conserveddomain.find_domains(cnx, new_gene_ids, new_gene_sequences, num_threads=2)
+                conserveddomain.find_domains(cnx, new_gene_ids,
+                                             new_gene_sequences, num_threads=2)
 
         except Exception:
             cnx.rollback()
@@ -487,13 +492,14 @@ def load(server, identifier, filepath):
         raise IOError('No such file: {}'.format(filepath))
 
     if query.database_exists(server.alchemist, identifier):
-        raise DatabaseAlreadyExistsError(f"Database {identifier} already exists.")
+        raise DatabaseAlreadyExistsError(
+                            f"Database {identifier} already exists.")
 
     server.alchemist.engine.execute(f"CREATE DATABASE `{identifier}`")
     server.alchemist.database = identifier
 
     try:
-        result = mysqldb_basic.install_db(server.alchemist.engine, filepath)
+        mysqldb_basic.install_db(server.alchemist.engine, filepath)
     except:
         delete(server, identifier)
         raise
@@ -704,16 +710,16 @@ def list_organisms(server, identifier):
     geneid_obj = gene_obj.c.GeneID
 
     columns = [name_obj, phageid_obj, func.count(geneid_obj)]
-    q = querying.build_select(server.alchemist.graph, columns)
+    q = querying.build_select(temp_alchemist.graph, columns)
     q = q.group_by(phageid_obj)
 
-    organism_data = querying.execute(server.alchemist.engine, q)
+    organism_data = querying.execute(temp_alchemist.engine, q)
 
     organisms = []
     for data_dict in organism_data:
         organisms.append(OrganismSummaryModel(data_dict["Name"],
                                               data_dict["PhageID"],
-                                              data_dict["Count(GeneID)"]))
+                                              data_dict["count_1"]))
 
     return organisms
 

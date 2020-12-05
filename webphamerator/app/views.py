@@ -61,11 +61,9 @@ class NavbarItem(object):
 @bp.route('/index')
 @bp.route('/databases')
 def databases():
-    dbs = (db.session.query(models.Database).filter(
-        models.Database.visible is True).order_by(
-                                        models.Database.display_name).all())
-
-    print(dbs)
+    dbs = (db.session.query(models.Database)
+                     .filter(models.Database.visible == 1)
+                     .order_by(models.Database.display_name).all())
 
     return render_template('databases.html',
                            title='Databases',
@@ -86,9 +84,9 @@ class PhageViewModel(object):
 
 @bp.route('/databases/<int:db_id>', methods=['GET'])
 def database(db_id):
-    database = (db.session.query(models.Database).filter(
-                                    models.Database.visible).filter(
-                                        models.Database.id == db_id).first())
+    database = (db.session.query(models.Database)
+                          .filter(models.Database.visible == 1)
+                          .filter(models.Database.id == db_id).first())
 
     if database is None:
         abort(404)
@@ -109,8 +107,6 @@ def database(db_id):
     server = pham.db.DatabaseServer.from_url(
                                 current_app.config['SQLALCHEMY_DATABASE_URI'])
     phage_view_models = []
-    mysql_name = database.mysql_name()
-    print(mysql_name)
     for phage in pham.db.list_organisms(server, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,
@@ -150,7 +146,7 @@ def delete_database(db_id):
     pham.db.delete(server, db_record.mysql_name())
     db.session.delete(db_record)
     db.session.commit()
-    return redirect(url_for('databases'), code=302)
+    return redirect(url_for('views.databases'), code=302)
 
 
 @bp.route('/databases/<int:db_id>/edit', methods=['GET'])
@@ -346,7 +342,7 @@ def delete_job(job_id):
     db.session.delete(job)
     db.session.commit()
 
-    return redirect(url_for('jobs'))
+    return redirect(url_for('views.jobs'))
 
 
 @bp.route('/databases/new')

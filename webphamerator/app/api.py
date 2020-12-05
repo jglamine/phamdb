@@ -120,8 +120,7 @@ def new_database():
         sqlext.db.session.commit()
 
     if not test:
-        result = tasks.create_database.delay(job_id)
-        result.backend
+        tasks.database_task.delay(job_id, "create")
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 201
@@ -231,8 +230,6 @@ def modify_database(database_id):
             response object will contain an 'errors' array.
         412: POST data missing a required property
     """
-    database_farmer = tasks.database_farmer
-
     errors = []
 
     json_data = request.get_json()
@@ -245,7 +242,8 @@ def modify_database(database_id):
 
     file_ids = json_data.get('file_ids', [])
     phage_ids = json_data.get('phages_to_delete', [])
-    phages_from_other_databases = json_data.get('phages_from_other_databases', [])
+    phages_from_other_databases = json_data.get(
+                                            'phages_from_other_databases', [])
     description = json_data.get('description')
     test = json_data.get('test', False)
 
@@ -314,7 +312,7 @@ def modify_database(database_id):
         database_record.locked = True
         sqlext.db.session.commit()
 
-        database_farmer.modify.delay(job_id)
+        tasks.database_task.delay(job_id, "modify")
 
     return flask.jsonify(errors=[],
                          job_id=job_id), 200
