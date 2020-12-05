@@ -312,6 +312,7 @@ def rebuild(server, identifier, organism_ids_to_delete=None,
     db_alchemist = AlchemyHandler()
     db_alchemist.engine = server.alchemist.engine
     db_alchemist.database = identifier
+    db_alchemist.build_engine()
 
     # open and validate genbank files
     # also detect duplicate phages
