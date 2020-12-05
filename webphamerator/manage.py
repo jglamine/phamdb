@@ -1,8 +1,8 @@
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
-from webphamerator.app import create_app
-from webphamerator.flask import models
+from webphamerator.app.flask_app import create_app
+from webphamerator.app.sqlalchemy_ext import models
 
 
 def build_manager():
