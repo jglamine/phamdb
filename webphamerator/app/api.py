@@ -3,6 +3,7 @@ import shutil
 import os
 import pham.genbank
 import pham.db
+from pathlib import Path
 
 import flask
 from flask import (abort, Blueprint, current_app, request)
@@ -194,21 +195,27 @@ def import_sql_dump():
     # export database dump
     path = os.path.join(current_app.config['DATABASE_DUMP_DIR'],
                         database_record.name_slug)
+
+    path = Path(path)
+    sql_path = path.with_suffix(".sql")
+    md5sum_path = path.with_suffix(".md5sum")
+    version_path = path.with_suffix(".version")
+
     # delete old dump
     try:
-        os.remove(path + '.sql')
+        os.remove(sql_path)
     except OSError:
         pass
     try:
-        os.remove(path + '.md5sum')
+        os.remove(md5sum_path)
     except OSError:
         pass
     try:
-        os.remove(path + '.version')
+        os.remove(version_path)
     except OSError:
         pass
 
-    pham.db.export(server, database_record.mysql_name(), path + '.sql')
+    pham.db.export(server, database_record.mysql_name(), sql_path)
 
     return flask.jsonify(errors=[], database_id=database_record.id), 201
 

@@ -25,6 +25,7 @@ import subprocess
 from contextlib import closing
 from enum import Enum
 from urllib.parse import urlparse
+from pathlib import Path
 
 import mysql.connector
 from mysql.connector import errorcode
@@ -503,10 +504,14 @@ def load(server, identifier, filepath):
                             f"Database {identifier} already exists.")
 
     server.alchemist.engine.execute(f"CREATE DATABASE `{identifier}`")
-    server.alchemist.database = identifier
+
+    temp_alchemist = AlchemyHandler()
+    temp_alchemist.engine = server.alchemist.engine
+    temp_alchemist.database = identifier
+    temp_alchemist.build_engine()
 
     try:
-        mysqldb_basic.install_db(server.alchemist.engine, filepath)
+        mysqldb_basic.install_db(temp_alchemist.engine, Path(filepath))
     except:
         delete(server, identifier)
         raise
@@ -529,6 +534,11 @@ def export(server, identifier, filepath):
     if not query.database_exists(server.alchemist, identifier):
         raise DatabaseDoesNotExistError(f"No such database {identifier}.")
 
+    temp_alchemist = AlchemyHandler()
+    temp_alchemist.engine = server.alchemist.engine
+    temp_alchemist.database = identifier
+    temp_alchemist.build_engine()
+
     if os.path.exists(filepath):
         raise IOError('File already exists: {}'.format(filepath))
     if os.path.exists(version_filename):
@@ -538,8 +548,8 @@ def export(server, identifier, filepath):
 
     directory.mkdir(exist_ok=True)
 
-    version = query.version_number(server.alchemist)
-    fileio.write_database(server.alchemist, version, directory,
+    version = query.version_number(temp_alchemist)
+    fileio.write_database(temp_alchemist, version, directory,
                           db_name=base_path.name)
 
     # calculate checksum

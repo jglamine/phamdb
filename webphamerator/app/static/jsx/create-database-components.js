@@ -453,7 +453,7 @@ var PhageUploadButton = React.createClass({
         <input type="file" className="btn" id="genbankFileInput"
           multiple
           ref="fileInput"
-          accept=".gb,.txt,.gbk"
+          accept=".gb,.txt,.gbk,.gbf"
           onChange={this.handleFiles}>
         </input>
         <p className="help-block">Select genbank files or drag and drop.</p>
