@@ -77,6 +77,9 @@ class Phage(object):
     def upload(self, cnx):
         # make sure phage does not exist
 
+        if len(self.accension) > 15:
+            self.accension = ""
+
         # upload phage
         with closing(cnx.cursor()) as cursor:
             values = (self.id, self.accension, self.name, self.host_strain, self.sequence, self.notes, self.sequence_length, self.gc)
