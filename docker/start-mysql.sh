@@ -8,5 +8,6 @@ then
 	/etc/init.d/mysql start
 else
 	/etc/init.d/mysql start
+  export PYTHONPATH=$PYTHONPATH:/home/docker/code
 	python /home/docker/code/webphamerator/manage.py db upgrade --directory /home/docker/code/webphamerator/migrations
 fi
