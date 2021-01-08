@@ -39,4 +39,4 @@ RUN echo "30 2 * * * /home/docker/code/docker/clear-temporary-files.sh" | cronta
 RUN rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/
 
 EXPOSE 80
-CMD ["supervisord", "-n", "-c", "/home/docker/code/docker/supervisord-app.conf"]
+CMD ["supervisord", "-n", "-c", "/home/docker/code/docker/supervisor-app.conf"]
