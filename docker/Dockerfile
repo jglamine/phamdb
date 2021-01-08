@@ -35,8 +35,8 @@ RUN echo "DATABASE_DUMP_DIR = '/dockerdata/sql_dumps'" >> /home/docker/code/webp
 # add a cron job to delete temporary files every day at 2:30 am
 RUN echo "30 2 * * * /home/docker/code/docker/clear-temporary-files.sh" | crontab -
 
-# setup configuration files for nginx, uwsgi, and supervisor
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf && rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
+# setup configuration files for nginx, gunicorn, and supervisor
+rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/ && ln -s /home/docker/code/docker/supervisor-app.conf /etc/supervisor/conf.d/
 
 EXPOSE 80
-CMD ["supervisord", "-c", "/home/docker/code/docker/supervisor-app.conf"]
+CMD ["supervisord"]
