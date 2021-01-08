@@ -15,7 +15,7 @@ RUN apt-get install -y nginx supervisor rabbitmq-server && apt-get clean && rm -
 RUN git clone -b update_dev https://github.com/jglamine/phamdb.git /home/docker/code && rm -rf /home/docker/code/.git
 
 # install pip packages - installs and then removes build-essential to save space
-RUN apt-get install -y build-essential python3-pip && pip3 install uwsgi -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
+RUN apt-get install -y build-essential python3-pip && pip3 install -r /home/docker/code/requirements.txt && apt-get purge -y build-essential && apt-get autoremove -y && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 # add app to python path
 RUN echo "/home/docker/code" > /usr/lib/python3/dist-packages/phamdb.pth
@@ -38,5 +38,5 @@ RUN echo "30 2 * * * /home/docker/code/docker/clear-temporary-files.sh" | cronta
 # setup configuration files for nginx
 RUN rm /etc/nginx/sites-enabled/default && ln -s /home/docker/code/docker/nginx-app.conf /etc/nginx/sites-enabled/
 
-EXPOSE 80
+EXPOSE 80 5000
 CMD ["supervisord", "-n", "-c", "/home/docker/code/docker/supervisor-app.conf"]
