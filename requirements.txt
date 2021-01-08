@@ -10,6 +10,7 @@ Flask==1.1.2
 Flask-Migrate==2.5.3
 Flask-Script==2.0.6
 Flask-SQLAlchemy==2.4.4
+gunicorn==20.0.4
 humanize==2.5.0
 itsdangerous==1.1.0
 Jinja2==2.11.2
@@ -27,5 +28,4 @@ sqlparse==0.3.1
 supervisor==4.2.1
 Tempita==0.5.2
 Unidecode==0.4.21
-uwsgi==2.0.19.1
 Werkzeug==1.0.1
