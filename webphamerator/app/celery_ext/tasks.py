@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from flask import current_app
+from pdm_utils import AlchemyHandler
 
 import pham
 from webphamerator.app.sqlalchemy_ext import models
@@ -40,8 +41,8 @@ def database_success(job_id):
     database_record.created = datetime.datetime.utcnow()
     database_record.modified = datetime.datetime.utcnow()
 
-    server = get_server()
-    summary = pham.db.summary(server,
+    alchemist = get_alchemist()
+    summary = pham.db.summary(alchemist,
                               database_record.mysql_name())
     database_record.number_of_organisms = \
         summary.number_of_organisms
@@ -86,15 +87,15 @@ def database_task(job_id, task):
     models.db.session.commit()
 
     observer = CallbackObserver(job_id)
-    server = get_server()
+    alchemist = get_alchemist()
 
     if task == "create":
-        success = pham.db.create(server, database_record.mysql_name(),
+        success = pham.db.create(alchemist, database_record.mysql_name(),
                                  genbank_files=genbank_paths,
                                  cdd_search=database_record.cdd_search,
                                  callback=observer.handle_call)
     elif task == "modify":
-        success = pham.db.rebuild(server, database_record.mysql_name(),
+        success = pham.db.rebuild(alchemist, database_record.mysql_name(),
                                   organism_ids_to_delete=organism_ids,
                                   genbank_files_to_add=genbank_paths,
                                   cdd_search=database_record.cdd_search,
@@ -129,7 +130,7 @@ def database_task(job_id, task):
     except OSError:
         pass
 
-    pham.db.export(server, database_record.mysql_name(), sql_path)
+    pham.db.export(alchemist, database_record.mysql_name(), sql_path)
 
 
 # GENERAL HELPER FUNCTIONS
@@ -156,9 +157,11 @@ def clean_job(job_record):
     models.db.session.commit()
 
 
-def get_server():
-    return pham.db.DatabaseServer.from_url(current_app.config[
-                                           'SQLALCHEMY_DATABASE_URI'])
+def get_alchemist():
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config["SQLALCHEMY_DATABASE_URI"]
+
+    return alchemist
 
 
 def get_job(job_id):
