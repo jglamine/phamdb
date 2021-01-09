@@ -2,7 +2,7 @@ import os
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 SQLALCHEMY_DATABASE_URI = (
-                    "mysql+mysqlconnector://root:phage@localhost/webphamerate")
+                    "mysql+pymysql://root:phage@localhost/webphamerate")
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, "db_repository")
 GENBANK_FILE_DIR = os.path.join(basedir, "genbank_files")

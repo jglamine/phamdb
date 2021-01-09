@@ -7,6 +7,7 @@ from pathlib import Path
 
 import flask
 from flask import (abort, Blueprint, current_app, request)
+from pdm_utils import AlchemyHandler
 from webphamerator.app import sqlalchemy_ext as sqlext
 from webphamerator.app import filters
 from webphamerator.app.celery_ext import tasks
@@ -65,10 +66,10 @@ def new_database():
     if count:
         errors.append('Database name \'{}\' is already in use.'.format(name))
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
     file_ids, err = _prepare_genbank_files(
-                                server, file_ids, phages_from_other_databases)
+                            alchemist, file_ids, phages_from_other_databases)
     errors += err
 
     if len(errors):
@@ -94,7 +95,7 @@ def new_database():
     # check database creation transaction for errors
     database_id = database_record.mysql_name()
 
-    success, errors = pham.db.check_create(server, database_id,
+    success, errors = pham.db.check_create(alchemist, database_id,
                                            genbank_files=genbank_filepaths)
 
     if not success:
@@ -159,16 +160,16 @@ def import_sql_dump():
         return flask.jsonify(errors=errors), 400
 
     # create database from sql dump
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist = current_app.config['SQLALCHEMY_DATABASE_URI']
     database_id = models.Database.mysql_name_for(name)
 
     try:
-        pham.db.load(server, database_id, filename)
+        pham.db.load(alchemist, database_id, filename)
     except pham.db.DatabaseAlreadyExistsError:
         errors.append('A database with that name already exists.')
     except Exception:
-        pham.db.delete(server, database_id)
+        pham.db.delete(alchemist, database_id)
         errors.append('Invalid database schema.')
     finally:
         if os.path.isfile(filename):
@@ -177,7 +178,7 @@ def import_sql_dump():
     if len(errors):
         return flask.jsonify(errors=errors), 400
 
-    database_summary = pham.db.summary(server, database_id)
+    database_summary = pham.db.summary(alchemist, database_id)
 
     # create database record
     database_record = models.Database(
@@ -215,7 +216,7 @@ def import_sql_dump():
     except OSError:
         pass
 
-    pham.db.export(server, database_record.mysql_name(), sql_path)
+    pham.db.export(alchemist, database_record.mysql_name(), sql_path)
 
     return flask.jsonify(errors=[], database_id=database_record.id), 201
 
@@ -264,9 +265,9 @@ def modify_database(database_id):
     elif database_record.locked is True:
         errors.append('This database already has a queued job.')
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
-    file_ids, err = _prepare_genbank_files(server, file_ids,
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config["SQLALCHEMY_DATABASE_URI"]
+    file_ids, err = _prepare_genbank_files(alchemist, file_ids,
                                            phages_from_other_databases)
     errors += err
 
@@ -283,7 +284,7 @@ def modify_database(database_id):
 
     # check database transaction for errors
     database_id = database_record.mysql_name()
-    success, errors = pham.db.check_rebuild(server, database_id,
+    success, errors = pham.db.check_rebuild(alchemist, database_id,
                                             organism_ids=phage_ids,
                                             genbank_files=genbank_filepaths)
 
@@ -327,7 +328,7 @@ def modify_database(database_id):
                          job_id=job_id), 200
 
 
-def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
+def _prepare_genbank_files(alchemist, file_ids, phages_from_other_databases):
     """Checks uploaded genbank files and exports phages from existing databases.
 
     Returns (file_ids, errors):
@@ -365,7 +366,7 @@ def _prepare_genbank_files(server, file_ids, phages_from_other_databases):
                                 delete=False) as local_handle:
                 local_filename = local_handle.name
                 try:
-                    phage = pham.db.export_to_genbank(server,
+                    phage = pham.db.export_to_genbank(alchemist,
                                                       db_record.mysql_name(),
                                                       phage_id, local_handle)
                     file_record = models.GenbankFile(filename=local_filename,
@@ -467,10 +468,11 @@ def list_phages(database_id):
     if database_record is None:
         return 'Database with id {} not found.'.format(database_id), 404
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
     try:
-        phages = pham.db.list_organisms(server, database_record.mysql_name())
+        phages = pham.db.list_organisms(alchemist,
+                                        database_record.mysql_name())
     except pham.db.DatabaseDoesNotExistError:
         return "Database with id {database_id} not found.", 500
 
