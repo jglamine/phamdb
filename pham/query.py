@@ -1,7 +1,7 @@
+from sqlalchemy import (delete, select)
 from sqlalchemy.sql import func
 
-from pdm_utils.functions import mysqldb_basic
-from pdm_utils.functions import querying
+from pdm_utils.functions import (mysqldb_basic, querying)
 
 # GLOBAL VARIABLES
 # -----------------------------------------------------------------------------
@@ -70,19 +70,13 @@ def count_domains(alchemist):
     return mysqldb_basic.scalar(alchemist.engine, query)
 
 
-def delete_phage(alchemist, phage_id):
-    phage_map = alchemist.mapper.classes["phage"]
+def delete_phage(metadata, engine, phage_id):
+    phage_obj = metadata.tables["phage"]
 
-    phage_entry = alchemist.session.query(phage_map).filter_by(
-                                            PhageID=phage_id).scalar()
+    if phage_id is not None:
+        statement = delete(phage_obj).where(phage_obj.c.PhageID == phage_id)
 
-    if phage_entry is not None:
-        alchemist.session.delete(phage_entry)
-
-        try:
-            alchemist.session.commit()
-        except:
-            alchemist.session.rollback()
+        engine.execute(statement)
 
 
 def list_genes(alchemist, phage_id):
@@ -108,6 +102,58 @@ def phage_exists(alchemist, phage_id):
                                  where=(phageid_obj == phage_id))
 
     return (mysqldb_basic.scalar(alchemist.engine, query) >= 1)
+
+
+def retrieve_gene_sequences_and_geneids(metadata, engine):
+    sequences = []
+    gene_ids = []
+
+    gene_obj = metadata.tables["gene"]
+
+    query = select([gene_obj.c.Translation, gene_obj.c.GeneID])
+    proxy = engine.execute(query)
+    gene_rows = proxy.fetchall()
+    for sequence, gene_id in gene_rows:
+        sequences.append(sequence)
+        gene_ids.append(gene_id)
+
+    return sequences, gene_ids
+
+
+def get_pham_geneids(metadata, engine):
+    """Reads phams from the database.
+
+    Returns a dictionary mapping pham_id to a set of gene ids.
+    """
+    phams = {}
+
+    gene_obj = metadata.tables["gene"]
+
+    query = select([gene_obj.c.PhamID, gene_obj.c.GeneID])
+
+    proxy = engine.execute(query)
+    results = proxy.fetchall()
+    for pham_id, gene_id in results:
+        pham_set = phams.get(pham_id, set())
+        pham_set.add(gene_id)
+
+    return phams
+
+
+def get_pham_colors(metadata, engine):
+    """Return a dictionary mapping pham_id to color
+    """
+    pham_colors = {}
+
+    gene_obj = metadata.tables["gene"]
+
+    query = select([gene_obj.c.PhamID, gene_obj.c.Color])
+
+    proxy = engine.execute(query)
+    results = proxy.fetchall()
+    for pham_id, color in results:
+        pham_colors[pham_id] = color
+    return pham_colors
 
 
 def list_phams(server, id):

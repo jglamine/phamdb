@@ -57,9 +57,7 @@ def run_migrations_online():
                 poolclass=pool.NullPool)
 
     connection = engine.connect()
-    url = str(engine.url)
     context.configure(
-                url=url,
                 connection=connection,
                 target_metadata=target_metadata
                 )
