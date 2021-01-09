@@ -16,3 +16,5 @@ CELERYD_CONCURRENCY = 1
 
 # replace this in production
 SECRET_KEY = 'override in production'
+SECRET_KEY = 'xYQ8Asv9Ie9Y2XDNfIorkj0l'
+SECRET_KEY = 'ULZH8hJfSNflNvtWjBsn.sw5'

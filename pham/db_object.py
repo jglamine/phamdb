@@ -34,10 +34,10 @@ class Phage(object):
         proxy = alchemist.engine.execute(
             "SELECT PhageID, Accession, Name, HostStrain, Isolated, "
             "Sequence, Notes FROM phage "
-            " WHERE phage.PhageID = '{}'".format(phage_id))
+            f" WHERE phage.PhageID = '{phage_id}'")
         rows = proxy.fetchall()
         if len(rows) == 0:
-            raise PhageNotFoundError('id: {}'.format(phage_id))
+            raise PhageNotFoundError(f"id: {phage_id}".format(phage_id))
         row = rows[0]
         phage = Phage(row[0], row[1], row[2], row[3], row[4], row[5],
                       str(row[6]), None, None, None)
@@ -47,7 +47,7 @@ class Phage(object):
             "SELECT GeneID, Notes, Start, Stop, Length, Translation, "
             "StartCodon, StopCodon, Name, TypeID, Orientation, LeftNeighbor, "
             "RightNeighbor, GC, GC1, GC2, GC3 FROM gene "
-            "WHERE gene.PhageID = '{}'".format(phage_id))
+            f"WHERE gene.PhageID = '{phage_id}'")
         genes = []
         for row in proxy.fetchall():
             gene = Gene(row[0], str(row[1]), row[2], row[3], row[4], None,

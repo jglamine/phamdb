@@ -110,7 +110,7 @@ def message_for_callback(code, *args, **kwargs):
         message = f"Adding phages resulted in duplicate phage. ID: {phage_id}"
     elif code == CallbackCode.duplicate_genbank_files:
         phage_id = args[0]
-        message = "The same genbank file occurs twice. Phage ID: {phage_id}"
+        message = f"The same genbank file occurs twice. Phage ID: {phage_id}"
     elif code == CallbackCode.file_does_not_exist:
         message = "Unable to find uploaded genbank file."
     elif code == CallbackCode.gene_id_already_exists:
@@ -274,32 +274,34 @@ def rebuild(alchemist, identifier, organism_ids_to_delete=None,
     db_alchemist.database = identifier
     db_alchemist.build_engine()
 
-    if not validate_genbank_files(genbank_files_to_add,
+    if not validate_genbank_files(db_alchemist, genbank_files_to_add,
                                   organism_ids_to_delete, callback):
         return False
-
-    # update version number
-    mysqldb.change_version(alchemist.engine)
-
-    with db_alchemist.engine.begin() as engine:
+ 
+    with db_alchemist.engine.connect() as engine:
+        transaction = engine.begin()
         delete_redundant_organisms(db_alchemist, engine,
                                    organism_ids_to_delete, callback)
 
         new_gene_ids = []
         new_gene_sequences = []
         if not upload_genbank_files(
-                                db_alchemist, genbank_files_to_add,
+                                engine, genbank_files_to_add,
                                 callback, new_gene_ids, new_gene_sequences):
-            engine.rollback()
+            transaction.rollback()
             return False
 
         if not commit:
-            engine.rollback()
+            transaction.rollback()
+            transaction.close()
             return True
 
         # calculate phams
         if new_gene_ids or organism_ids_to_delete:
-            calculate_phams(db_alchemist, engine)
+            calculate_phams(db_alchemist, engine, callback)
+
+        transaction.commit()
+        transaction.close()
 
     if cdd_search and len(new_gene_ids):
         callback(CallbackCode.status,
@@ -308,6 +310,9 @@ def rebuild(alchemist, identifier, organism_ids_to_delete=None,
         # only search for new genes
         conserveddomain.find_domains(db_alchemist, new_gene_ids,
                                      new_gene_sequences, num_threads=2)
+
+    # update version number
+    mysqldb.change_version(alchemist.engine)
 
     return True
 
@@ -584,15 +589,19 @@ def upload_genbank_files(engine, genbank_files_to_add, callback,
                 for error in phage.errors:
                     callback(CallbackCode.genbank_format_error, error)
                 return False
+
             # upload phage
             try:
                 phage.upload(engine)
             except:
                 callback(CallbackCode.gene_id_already_exists, phage.id)
                 return False
+
             for gene in phage.genes:
                 new_gene_ids.append(gene.gene_id)
                 new_gene_sequences.append(gene.translation)
+
+    return True
 
 
 def calculate_phams(db_alchemist, engine, callback):
@@ -623,7 +632,7 @@ def calculate_phams(db_alchemist, engine, callback):
 
         # assign colors to the phams
         original_colors = query.get_pham_colors(
-                                        db_alchemist, engine)
+                                        db_alchemist.metadata, engine)
         pham_id_to_color = _assign_pham_colors(
                                         pham_id_to_gene_ids,
                                         original_colors)

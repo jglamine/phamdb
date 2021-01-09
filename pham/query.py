@@ -145,9 +145,9 @@ def get_pham_colors(metadata, engine):
     """
     pham_colors = {}
 
-    gene_obj = metadata.tables["gene"]
+    pham_obj = metadata.tables["pham"]
 
-    query = select([gene_obj.c.PhamID, gene_obj.c.Color])
+    query = select([pham_obj.c.PhamID, pham_obj.c.Color])
 
     proxy = engine.execute(query)
     results = proxy.fetchall()
