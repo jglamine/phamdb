@@ -161,7 +161,7 @@ def import_sql_dump():
 
     # create database from sql dump
     alchemist = AlchemyHandler()
-    alchemist = current_app.config['SQLALCHEMY_DATABASE_URI']
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
     database_id = models.Database.mysql_name_for(name)
 
     try:

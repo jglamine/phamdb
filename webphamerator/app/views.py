@@ -4,6 +4,7 @@ from flask import (
 from webphamerator.app.celery_ext.celery_app import celery
 from webphamerator.app import auth
 from webphamerator.app.sqlalchemy_ext import (db, models)
+from pdm_utils import AlchemyHandler
 import pham.db
 import os
 import io
@@ -104,10 +105,11 @@ def database(db_id):
 
     server_url = request.url_root + 'db/'
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
+
     phage_view_models = []
-    for phage in pham.db.list_organisms(server, database.mysql_name()):
+    for phage in pham.db.list_organisms(alchemist, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,
                                  name=phage.name,
@@ -141,9 +143,10 @@ def delete_database(db_id):
     if db_record.locked:
         return redirect(url_for('database', db_id=db_id), code=303)
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
-    pham.db.delete(server, db_record.mysql_name())
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
+
+    pham.db.delete(alchemist, db_record.mysql_name())
     db.session.delete(db_record)
     db.session.commit()
     return redirect(url_for('views.databases'), code=302)
@@ -160,10 +163,11 @@ def edit_database(db_id):
     if database is None:
         abort(404)
 
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
+
     phage_view_models = []
-    for phage in pham.db.list_organisms(server, database.mysql_name()):
+    for phage in pham.db.list_organisms(alchemist, database.mysql_name()):
         phage_view_models.append(PhageViewModel(
                                  id=phage.id,
                                  name=phage.name,
@@ -188,11 +192,11 @@ def download_genbank_file(db_id, phage_id):
         abort(404)
 
     # export genbank file
-    server = pham.db.DatabaseServer.from_url(
-                                current_app.config['SQLALCHEMY_DATABASE_URI'])
+    alchemist = AlchemyHandler()
+    alchemist.URI = current_app.config['SQLALCHEMY_DATABASE_URI']
     handle = io.StringIO()
     try:
-        phage = pham.db.export_to_genbank(server, db_record.mysql_name(),
+        phage = pham.db.export_to_genbank(alchemist, db_record.mysql_name(),
                                           phage_id,
                                           handle)
     except pham.db.DatabaseDoesNotExistError:
