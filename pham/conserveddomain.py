@@ -2,10 +2,6 @@ import tempfile
 import os
 import os.path
 import shutil
-from contextlib import closing
-import mysql.connector
-import mysql.connector.errors
-from mysql.connector import errorcode
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
 
@@ -15,7 +11,7 @@ _OUTPUT_FORMAT_XML = 5  # constant used by rpsblast
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
 
-def find_domains(cnx, gene_ids, sequences, num_threads=1):
+def find_domains(alchemist, gene_ids, sequences, num_threads=1):
     try:
         # Put all the genes in a fasta file
         fasta_name = None
@@ -29,7 +25,8 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
             # run rpsblast
             output_name = os.path.join(output_directory, 'rpsblast.xml')
             expectation_value_cutoff = 0.001
-            cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database', 'Cdd', 'Cdd')
+            cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database',
+                                        'Cdd', 'Cdd')
             rpsblast_bin = os.path.join(_DATA_DIR, 'ncbi-blast', 'rpsblast')
             cline = NcbirpsblastCommandline(rpsblast_bin,
                                             query=fasta_name,
@@ -42,7 +39,7 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
             cline()
 
             # parse rpsblast output
-            read_domains_from_xml(cnx, output_name)
+            read_domains_from_xml(alchemist, output_name)
 
         finally:
             # Delete output directory regardless of rpsblast/reading outcome
@@ -56,15 +53,15 @@ def find_domains(cnx, gene_ids, sequences, num_threads=1):
                 pass
 
     # Mark the now-processed genes as 'searched' for domains
-    with closing(cnx.cursor()) as cursor:
+    with alchemist.engine.begin() as engine:
         in_clause = "'" + "', '".join(gene_ids) + "'"
         q = f"UPDATE gene SET DomainStatus = 1 WHERE GeneID in ({in_clause})"
-        cursor.execute(q)
+        engine.execute(q)
 
 
-def read_domains_from_xml(cnx, xml_filename):
+def read_domains_from_xml(alchemist, xml_filename):
     with open(xml_filename, 'r') as xml_handle:
-        with closing(cnx.cursor()) as cursor:
+        with alchemist.engine.begin() as engine:
             for record in NCBIXML.parse(xml_handle):
                 if not record.alignments:
                     # skip genes with no matches
@@ -76,14 +73,16 @@ def read_domains_from_xml(cnx, xml_filename):
                     hit_id = alignment.hit_id
                     domain_id, name, description = _read_hit(alignment.hit_def)
 
-                    _upload_domain(cursor, hit_id, domain_id, name, description)
+                    _upload_domain(engine, hit_id, domain_id, name,
+                                   description)
 
                     for hsp in alignment.hsps:
                         expect = float(hsp.expect)
                         query_start = int(hsp.query_start)
                         query_end = int(hsp.query_end)
 
-                        _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end)
+                        _upload_hit(engine, gene_id, hit_id, expect,
+                                    query_start, query_end)
 
 
 def _read_hit(hit):
@@ -106,28 +105,30 @@ def _read_hit(hit):
     return domain_id, name, description
 
 
-def _upload_domain(cursor, hit_id, domain_id, name, description):
+def _upload_domain(engine, hit_id, domain_id, name, description):
     try:
         q = f"INSERT INTO domain (HitID, DomainID, Name, Description) " \
             f"VALUES ('{hit_id}', '{domain_id}', '{name}', '{description}')"
-        cursor.execute(q)
-    except mysql.connector.errors.Error as e:
+        engine.execute(q)
+    except Exception as e:
+        e
         # ignore inserts which fail because the record already exists
-        if e.errno == errorcode.ER_DUP_ENTRY:
-            pass
-        else:
-            raise
+        # if e.errno == errorcode.ER_DUP_ENTRY:
+        #    pass
+        # else:
+        raise
 
 
-def _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end):
+def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
         q = f"INSERT INTO gene_domain (GeneID, HitID, Expect, QueryStart, " \
             f"QueryEnd) VALUES ('{gene_id}', '{hit_id}', '{expect}', " \
             f"'{query_start}', '{query_end}')"
-        cursor.execute(q)
-    except mysql.connector.errors.Error as e:
+        engine.execute(q)
+    except Exception as e:
+        e
         # ignore inserts which fail because the record already exists
-        if e.errno == errorcode.ER_DUP_ENTRY:
-            pass
-        else:
-            raise
+        # if e.errno == errorcode.ER_DUP_ENTRY:
+        #    pass
+        # else:
+        raise
