@@ -277,7 +277,7 @@ def rebuild(alchemist, identifier, organism_ids_to_delete=None,
     if not validate_genbank_files(db_alchemist, genbank_files_to_add,
                                   organism_ids_to_delete, callback):
         return False
- 
+
     with db_alchemist.engine.connect() as engine:
         transaction = engine.begin()
         delete_redundant_organisms(db_alchemist, engine,
@@ -312,7 +312,7 @@ def rebuild(alchemist, identifier, organism_ids_to_delete=None,
                                      new_gene_sequences, num_threads=2)
 
     # update version number
-    mysqldb.change_version(alchemist.engine)
+    mysqldb.change_version(db_alchemist.engine)
 
     return True
 

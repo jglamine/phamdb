@@ -87,14 +87,15 @@ def database_task(job_id, task):
     models.db.session.commit()
 
     observer = CallbackObserver(job_id)
-    alchemist = get_alchemist()
 
     if task == "create":
+        alchemist = get_alchemist()
         success = pham.db.create(alchemist, database_record.mysql_name(),
                                  genbank_files=genbank_paths,
                                  cdd_search=database_record.cdd_search,
                                  callback=observer.handle_call)
     elif task == "modify":
+        alchemist = get_alchemist()
         success = pham.db.rebuild(alchemist, database_record.mysql_name(),
                                   organism_ids_to_delete=organism_ids,
                                   genbank_files_to_add=genbank_paths,
