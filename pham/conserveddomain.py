@@ -5,6 +5,7 @@ import shutil
 
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
+from pdm_utils.functions import basic
 from pdm_utils.pipelines.find_domains import (
                                 INSERT_INTO_DOMAIN, INSERT_INTO_GENE_DOMAIN)
 
@@ -89,7 +90,8 @@ def read_domains_from_xml(alchemist, xml_filename):
 
 
 def _read_hit(hit):
-    items = hit.split(',')
+    hit_def = hit.replace("\"", "\'")
+    items = hit_def.split(',')
 
     description = None
     name = None
@@ -103,6 +105,7 @@ def _read_hit(hit):
     elif len(items) > 2:
         domain_id = items[0].strip()
         name = items[1].strip()
+        name = basic.truncate_value(name, 25, "...")
         description = ','.join(items[2:]).strip()
 
     return domain_id, name, description
