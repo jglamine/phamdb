@@ -2,8 +2,11 @@ import tempfile
 import os
 import os.path
 import shutil
+
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
+from pdm_utils.pipelines.find_domains import (
+                                INSERT_INTO_DOMAIN, INSERT_INTO_GENE_DOMAIN)
 
 from pham.mmseqs import _write_fasta_record
 
@@ -107,8 +110,7 @@ def _read_hit(hit):
 
 def _upload_domain(engine, hit_id, domain_id, name, description):
     try:
-        q = f"INSERT INTO domain (HitID, DomainID, Name, Description) " \
-            f"VALUES ('{hit_id}', '{domain_id}', '{name}', '{description}')"
+        q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
         engine.execute(q)
     except Exception as e:
         e
@@ -121,9 +123,8 @@ def _upload_domain(engine, hit_id, domain_id, name, description):
 
 def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
-        q = f"INSERT INTO gene_domain (GeneID, HitID, Expect, QueryStart, " \
-            f"QueryEnd) VALUES ('{gene_id}', '{hit_id}', '{expect}', " \
-            f"'{query_start}', '{query_end}')"
+        q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
+                                           query_start, query_end)
         engine.execute(q)
     except Exception as e:
         e
