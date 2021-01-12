@@ -129,13 +129,29 @@ def _upload_domain(engine, hit_id, domain_id, name, description):
             pass
         else:
             raise err
+    except ValueError as err:
+        if "%" in description:
+            description = description.replace("%", "%%")
+        else:
+            raise err
+        # If we got here, we entered the "%" replacement block...
+        try:
+            q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
+            print(q)
+            engine.execute(q)
+        except exc.IntegrityError or pmserr.IntegrityError as err:
+            error_code = err.args[0]
+            if error_code == 1062:
+                pass
+            else:
+                raise err
 
 
 def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
-        print(q)
+        # print(q)
         engine.execute(q)
     except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
