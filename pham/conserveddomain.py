@@ -3,7 +3,8 @@ import os
 import os.path
 import shutil
 
-import sqlalchemy
+from sqlalchemy import exc
+from pymysql import err as pmserr
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
 from pdm_utils.functions import basic
@@ -116,7 +117,7 @@ def _upload_domain(engine, hit_id, domain_id, name, description):
     try:
         q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
         engine.execute(q)
-    except sqlalchemy.exc.DBAPIError as err:
+    except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
         if error_code == 1062:
             pass
@@ -129,7 +130,7 @@ def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
         engine.execute(q)
-    except sqlalchemy.exc.DBAPIError or sqlalchemy.exc.IntegrityError as err:
+    except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
         if error_code == 1062:
             pass
