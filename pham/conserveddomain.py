@@ -129,7 +129,7 @@ def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
         engine.execute(q)
-    except sqlalchemy.exc.DBAPIError as err:
+    except sqlalchemy.exc.DBAPIError or sqlalchemy.exc.IntegrityError as err:
         error_code = err.args[0]
         if error_code == 1062:
             pass
