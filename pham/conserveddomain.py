@@ -121,6 +121,7 @@ def _read_hit(hit):
 def _upload_domain(engine, hit_id, domain_id, name, description):
     try:
         q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
+        print(q)
         engine.execute(q)
     except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
@@ -134,6 +135,7 @@ def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
+        print(q)
         engine.execute(q)
     except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
