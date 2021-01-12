@@ -1,6 +1,6 @@
-from debian:wheezy
+FROM debian:buster
 
-maintainer jglamine@gmail.com
+MAINTAINER chg60@pitt.edu
 
 # copy conserved domain database
 ADD Cdd/Cdd.rps /Cdd/Cdd.rps

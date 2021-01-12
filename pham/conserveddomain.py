@@ -2,69 +2,77 @@ import tempfile
 import os
 import os.path
 import shutil
-from contextlib import closing
-from itertools import izip
-import mysql.connector
-import mysql.connector.errors
-from mysql.connector import errorcode
+
+from sqlalchemy import exc
+from pymysql import err as pmserr
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
+from pdm_utils.functions import basic
 
-_OUTPUT_FORMAT_XML = 5 # constant used by rpsblast
+INSERT_INTO_DOMAIN = (
+    """INSERT IGNORE INTO domain (HitID, DomainID, Name, Description) """
+    """Values ("{}", "{}", "{}", "{}")""")
+INSERT_INTO_GENE_DOMAIN = (
+    """INSERT IGNORE INTO gene_domain (GeneID, HitID, Expect, QueryStart, """
+    """QueryEnd) VALUES ("{}", "{}", {}, {}, {})""")
+
+from pham.mmseqs import _write_fasta_record
+
+_OUTPUT_FORMAT_XML = 5  # constant used by rpsblast
 _DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 
-def find_domains(cnx, gene_ids, sequences, num_threads=1):
+
+def find_domains(alchemist, gene_ids, sequences, num_threads=1):
     try:
-        # build fasta file of all genes
-        fasta_filename = None
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as fasta_file:
-            fasta_filename = fasta_file.name
-            for gene_id, sequence in izip(gene_ids, sequences):
-                _write_fasta_record(fasta_file, sequence, gene_id)
+        # Put all the genes in a fasta file
+        fasta_name = None
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as fasta:
+            fasta_name = fasta.name
+            for gene_id, sequence in zip(gene_ids, sequences):
+                _write_fasta_record(fasta, sequence, gene_id)
 
         output_directory = tempfile.mkdtemp(suffix='-blast')
         try:
             # run rpsblast
-            output_filename = os.path.join(output_directory, 'rpsblast.xml')
+            output_name = os.path.join(output_directory, 'rpsblast.xml')
             expectation_value_cutoff = 0.001
-            cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database', 'Cdd', 'Cdd')
+            cdd_database = os.path.join(_DATA_DIR, 'conserved-domain-database',
+                                        'Cdd', 'Cdd')
             rpsblast_bin = os.path.join(_DATA_DIR, 'ncbi-blast', 'rpsblast')
             cline = NcbirpsblastCommandline(rpsblast_bin,
-                                            query=fasta_filename,
+                                            query=fasta_name,
                                             db=cdd_database,
-                                            out=output_filename,
+                                            out=output_name,
                                             outfmt=_OUTPUT_FORMAT_XML,
                                             evalue=expectation_value_cutoff,
-                                            num_threads=num_threads
-                                            )
-            stdout, stderr = cline()
+                                            num_threads=num_threads)
+            # stdout, stderr = cline()
+            cline()
 
             # parse rpsblast output
-            read_domains_from_xml(cnx, output_filename)
+            read_domains_from_xml(alchemist, output_name)
 
         finally:
+            # Delete output directory regardless of rpsblast/reading outcome
             shutil.rmtree(output_directory)
     finally:
-        if fasta_filename is not None:
+        # Delete input file regardless of rpsblast outcome
+        if fasta_name is not None:
             try:
-                os.remove(fasta_filename)
+                os.remove(fasta_name)
             except IOError:
                 pass
 
-    # set the gene.cdd_status flag to True
-    # this flag is used by legacy k_phamerate scripts
-    with closing(cnx.cursor()) as cursor:
-        id_parameters = ','.join(['%s'] * len(gene_ids))
-        query = '''
-            UPDATE gene
-            SET cdd_status = 1
-            WHERE gene.GeneID IN ( %s )
-                       ''' % id_parameters
-        cursor.execute(query, params=gene_ids)
+    # Mark the now-processed genes as 'searched' for domains
+    with alchemist.engine.begin() as engine:
+        in_clause = "'" + "', '".join(gene_ids) + "'"
+        q = f"UPDATE gene SET DomainStatus = 1 WHERE GeneID in ({in_clause})"
+        engine.execute(q)
 
-def read_domains_from_xml(cnx, xml_filename):
+
+def read_domains_from_xml(alchemist, xml_filename):
     with open(xml_filename, 'r') as xml_handle:
-        with closing(cnx.cursor()) as cursor:
+        with alchemist.engine.begin() as engine:
             for record in NCBIXML.parse(xml_handle):
                 if not record.alignments:
                     # skip genes with no matches
@@ -76,17 +84,21 @@ def read_domains_from_xml(cnx, xml_filename):
                     hit_id = alignment.hit_id
                     domain_id, name, description = _read_hit(alignment.hit_def)
 
-                    _upload_domain(cursor, hit_id, domain_id, name, description)
+                    _upload_domain(engine, hit_id, domain_id, name,
+                                   description)
 
                     for hsp in alignment.hsps:
                         expect = float(hsp.expect)
                         query_start = int(hsp.query_start)
                         query_end = int(hsp.query_end)
 
-                        _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end)
+                        _upload_hit(engine, gene_id, hit_id, expect,
+                                    query_start, query_end)
+
 
 def _read_hit(hit):
-    items = hit.split(',')
+    hit_def = hit.replace("\"", "\'")
+    items = hit_def.split(',')
 
     description = None
     name = None
@@ -100,40 +112,65 @@ def _read_hit(hit):
     elif len(items) > 2:
         domain_id = items[0].strip()
         name = items[1].strip()
+        name = basic.truncate_value(name, 25, "...")
         description = ','.join(items[2:]).strip()
 
     return domain_id, name, description
 
-def _write_fasta_record(fasta_file, sequence, gene_id):
-    sequence = sequence.replace('-', 'M')
-    fasta_file.write('>{}\n'.format(gene_id))
-    index = 0
-    while index < len(sequence):
-        fasta_file.write('{}\n'.format(sequence[index:index + 80]))
-        index += 80
 
-def _upload_domain(cursor, hit_id, domain_id, name, description):
+def _upload_domain(engine, hit_id, domain_id, name, description):
+    """
+    Inserts domains into the `domain` table.
+    """
+    # DomainIDs must be unique - per database schema rules
     try:
-        cursor.execute('''
-            INSERT INTO domain (hit_id, DomainID, Name, Description)
-            VALUES (%s, %s, %s, %s)
-            ''', (hit_id, domain_id, name, description))
-    except mysql.connector.errors.Error as e:
-        # ignore inserts which fail because the record already exists
-        if e.errno == errorcode.ER_DUP_ENTRY:
+        # Try inserting domain into database
+        q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
+        # print(q)
+        engine.execute(q)
+    except exc.IntegrityError or pmserr.IntegrityError as err:
+        error_code = err.args[0]
+        if error_code == 1062:
+            # Except, if domain already exists in database - do nothing
             pass
         else:
-            raise
+            # All other errors, raise
+            raise err
+    except TypeError as err:
+        # Except TypeError, raised if description string is funny...
+        if "%" in description:
+            # For example, "%" known to be problematic for pymysql, so
+            # replace with "%%", which for some reason fixes it
+            description = description.replace("%", "%%")
+        else:
+            # Otherwise, we have an unknown TypeError - raise it
+            raise err
+        # If we got here, we entered the "%" replacement block...
+        try:
+            # Now that we've replaced "%" with "%%", try executing command with
+            # modified description field
+            q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
+            # print(q)
+            engine.execute(q)
+        except exc.IntegrityError or pmserr.IntegrityError as err:
+            # Again ignore duplicate hit error
+            error_code = err.args[0]
+            if error_code == 1062:
+                pass
+            else:
+                # But raise anything else
+                raise err
 
-def _upload_hit(cursor, gene_id, hit_id, expect, query_start, query_end):
+
+def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
-        cursor.execute('''
-            INSERT INTO gene_domain (GeneID, hit_id, expect, query_start, query_end)
-            VALUES (%s, %s, %s, %s, %s)
-            ''', (gene_id, hit_id, expect, query_start, query_end))
-    except mysql.connector.errors.Error as e:
-        # ignore inserts which fail because the record already exists
-        if e.errno == errorcode.ER_DUP_ENTRY:
+        q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
+                                           query_start, query_end)
+        # print(q)
+        engine.execute(q)
+    except exc.IntegrityError or pmserr.IntegrityError as err:
+        error_code = err.args[0]
+        if error_code == 1062:
             pass
         else:
-            raise
+            raise err

@@ -1,6 +1,11 @@
 *.pyc
 *.log
+*.swp
+*.swo
 env
+webphamerator.log
 webphamerator/database_dumps/*
 webphamerator/genbank_files/*
 deployment-todo.txt
+.idea/
+venv/
