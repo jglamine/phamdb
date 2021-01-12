@@ -129,7 +129,7 @@ def _upload_domain(engine, hit_id, domain_id, name, description):
             pass
         else:
             raise err
-    except ValueError as err:
+    except TypeError as err:
         if "%" in description:
             description = description.replace("%", "%%")
         else:
