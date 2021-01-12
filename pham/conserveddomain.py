@@ -119,31 +119,46 @@ def _read_hit(hit):
 
 
 def _upload_domain(engine, hit_id, domain_id, name, description):
+    """
+    Inserts domains into the `domain` table.
+    """
+    # DomainIDs must be unique - per database schema rules
     try:
+        # Try inserting domain into database
         q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
-        print(q)
+        # print(q)
         engine.execute(q)
     except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
         if error_code == 1062:
+            # Except, if domain already exists in database - do nothing
             pass
         else:
+            # All other errors, raise
             raise err
     except TypeError as err:
+        # Except TypeError, raised if description string is funny...
         if "%" in description:
+            # For example, "%" known to be problematic for pymysql, so
+            # replace with "%%", which for some reason fixes it
             description = description.replace("%", "%%")
         else:
+            # Otherwise, we have an unknown TypeError - raise it
             raise err
         # If we got here, we entered the "%" replacement block...
         try:
+            # Now that we've replaced "%" with "%%", try executing command with
+            # modified description field
             q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
-            print(q)
+            # print(q)
             engine.execute(q)
         except exc.IntegrityError or pmserr.IntegrityError as err:
+            # Again ignore duplicate hit error
             error_code = err.args[0]
             if error_code == 1062:
                 pass
             else:
+                # But raise anything else
                 raise err
 
 
@@ -151,7 +166,7 @@ def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
     try:
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
-        print(q)
+        # print(q)
         engine.execute(q)
     except exc.IntegrityError or pmserr.IntegrityError as err:
         error_code = err.args[0]
