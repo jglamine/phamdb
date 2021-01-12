@@ -8,8 +8,13 @@ from pymysql import err as pmserr
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
 from pdm_utils.functions import basic
-from pdm_utils.pipelines.find_domains import (
-                                INSERT_INTO_DOMAIN, INSERT_INTO_GENE_DOMAIN)
+
+INSERT_INTO_DOMAIN = (
+    """INSERT IGNORE INTO domain (HitID, DomainID, Name, Description) """
+    """Values ("{}", "{}", "{}", "{}")""")
+INSERT_INTO_GENE_DOMAIN = (
+    """INSERT IGNORE INTO gene_domain (GeneID, HitID, Expect, QueryStart, """
+    """QueryEnd) VALUES ("{}", "{}", {}, {}, {})""")
 
 from pham.mmseqs import _write_fasta_record
 
