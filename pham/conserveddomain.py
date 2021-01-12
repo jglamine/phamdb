@@ -3,6 +3,7 @@ import os
 import os.path
 import shutil
 
+import sqlalchemy
 from Bio.Blast.Applications import NcbirpsblastCommandline
 from Bio.Blast import NCBIXML
 from pdm_utils.functions import basic
@@ -115,13 +116,12 @@ def _upload_domain(engine, hit_id, domain_id, name, description):
     try:
         q = INSERT_INTO_DOMAIN.format(hit_id, domain_id, name, description)
         engine.execute(q)
-    except Exception as e:
-        e
-        # ignore inserts which fail because the record already exists
-        # if e.errno == errorcode.ER_DUP_ENTRY:
-        #    pass
-        # else:
-        raise
+    except sqlalchemy.exc.DBAPIError as err:
+        error_code = err.args[0]
+        if error_code == 1062:
+            pass
+        else:
+            raise err
 
 
 def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
@@ -129,10 +129,9 @@ def _upload_hit(engine, gene_id, hit_id, expect, query_start, query_end):
         q = INSERT_INTO_GENE_DOMAIN.format(gene_id, hit_id, expect,
                                            query_start, query_end)
         engine.execute(q)
-    except Exception as e:
-        e
-        # ignore inserts which fail because the record already exists
-        # if e.errno == errorcode.ER_DUP_ENTRY:
-        #    pass
-        # else:
-        raise
+    except sqlalchemy.exc.DBAPIError as err:
+        error_code = err.args[0]
+        if error_code == 1062:
+            pass
+        else:
+            raise err
