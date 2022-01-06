@@ -4,7 +4,7 @@ anyjson==0.3.3
 awesome-slugify==1.6.5
 backports.pbkdf2==0.1
 billiard==3.6.3.0
-celery==4.4.6
+celery==5.2.2
 decorator==4.4.2
 Flask==1.1.2
 Flask-Migrate==2.5.3
